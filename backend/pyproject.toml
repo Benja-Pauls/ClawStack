@@ -44,6 +44,9 @@ select = [
     "UP",    # pyupgrade
     "RUF",   # ruff-specific rules
 ]
+ignore = [
+    "B008",  # function call in default arg — FastAPI Depends()/Security() require this
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -12,7 +12,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.config import settings
-from app.models.base import Base, get_engine
+from app.models.base import Base
 
 # Import all models so Alembic can detect them for autogenerate
 from app.models.item import Item  # noqa: F401

@@ -24,7 +24,7 @@ from starlette.responses import JSONResponse, Response
 from app.logging_config import get_logger
 
 # Re-export for convenience
-from app.routes.auth import get_current_user, get_optional_user, UserInfo  # noqa: F401
+from app.routes.auth import UserInfo, get_current_user, get_optional_user  # noqa: F401
 
 logger = get_logger(__name__)
 

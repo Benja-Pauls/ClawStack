@@ -16,8 +16,9 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick Start</a> ·
-  <a href="#three-tiers">Three Tiers</a> ·
+  <a href="#tier-1">Tier 1: Quick Start</a> ·
+  <a href="#tier-2">Tier 2: OpenClaw</a> ·
+  <a href="#tier-3">Tier 3: NemoClaw</a> ·
   <a href="#deploy-to-aws">Deploy to AWS</a> ·
   <a href="#skills">Skills</a> ·
   <a href="#configuration">Config</a> ·
@@ -28,44 +29,90 @@
 
 ## Why ClawStack?
 
-You're building a fullstack app with an AI coding agent — Claude Code, Cursor, Copilot, or something new that shipped last Tuesday. But every session starts cold. The agent doesn't know your project structure, your naming conventions, or why you chose Alembic over raw SQL migrations. It hallucinates file paths and scaffolds patterns you don't use.
+Every AI coding session starts cold. The agent doesn't know your project structure, your conventions, or why you're using Alembic instead of raw SQL. It hallucinates paths and scaffolds patterns that don't fit.
 
-Existing templates give you app scaffolding. Existing agent frameworks give you tooling. But the connection between "here's the app" and "here's how to work on it" is usually missing — left for you to rediscover every session.
+ClawStack ships with SKILL.md context files your agent reads immediately, structured JSON logging it can parse programmatically, and — with OpenClaw — automation skills for dev server watching, endpoint scaffolding, and one-command AWS deploys.
 
-**ClawStack bridges that gap.** It ships with context files your agent can read immediately, structured JSON logging it can parse programmatically, and — with OpenClaw — automation skills that let it watch your dev servers, fix errors, scaffold endpoints, and deploy to AWS without asking you how.
+### The Stack
 
 <table>
 <tr>
-<td width="50%">
-
-**📋 SKILL.md Context Files**<br/>
-Plain markdown files in `.skills/` that teach any agent your project structure, conventions, and workflows — no special format or lock-in.
-
-</td>
-<td width="50%">
-
-**👁️ Dev Server Watching**<br/>
-OpenClaw tails both backend and frontend log streams, auto-detects errors, and applies fixes before you notice them.
-
-</td>
+<td width="160"><img src="https://img.shields.io/badge/Frontend-61DAFB?style=for-the-badge&logoColor=black" /></td>
+<td><strong>React 18 · TypeScript · Vite 6 · Tailwind v4</strong><br/>TanStack Query for data fetching · React Router v6 · Vitest</td>
 </tr>
 <tr>
-<td width="50%">
+<td><img src="https://img.shields.io/badge/Backend-22C55E?style=for-the-badge&logoColor=white" /></td>
+<td><strong>FastAPI · Python 3.12 · uv</strong><br/>Pydantic settings · structured JSON logging · typed schemas</td>
+</tr>
+<tr>
+<td><img src="https://img.shields.io/badge/Database-336791?style=for-the-badge&logoColor=white" /></td>
+<td><strong>PostgreSQL · SQLAlchemy 2.0 · Alembic</strong><br/>Docker locally · RDS in AWS · migrations via Alembic</td>
+</tr>
+<tr>
+<td><img src="https://img.shields.io/badge/Infra-FF9900?style=for-the-badge&logoColor=white" /></td>
+<td><strong>Terraform · AWS App Runner · ECR · RDS</strong><br/>VPC networking included · dev / staging / prod environments</td>
+</tr>
+<tr>
+<td><img src="https://img.shields.io/badge/CI-24292E?style=for-the-badge&logoColor=white" /></td>
+<td><strong>GitHub Actions · pytest · Vitest</strong><br/>Lint + test on every push · deploy workflow in <code>scripts/</code></td>
+</tr>
+<tr>
+<td><img src="https://img.shields.io/badge/Agent_Context-7C3AED?style=for-the-badge&logoColor=white" /></td>
+<td><strong>SKILL.md files · OpenClaw skills · openclaw.json</strong><br/>Any agent reads the context files · OpenClaw/NemoClaw unlock automation</td>
+</tr>
+</table>
 
-**🔀 Model Routing**<br/>
-Route fast coding tasks to a local model (Ollama) and planning tasks to a frontier model (Claude) — configured in one JSON file.
+## Integration Tiers
+
+Start with whatever agent you already use. Add tools when you want more automation.
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### Tier 1 — Any Agent
+
+Clone the repo, run `make dev`, and point your agent at `.skills/`. The SKILL.md context files and structured JSON logging work with Claude Code, Cursor, Copilot, or anything else that can read files.
+
+**→ [Quick Start ↓](#quick-start)**
 
 </td>
-<td width="50%">
+<td width="33%" valign="top">
 
-**⚡ One-Command Startup**<br/>
-`make dev` starts Postgres, runs migrations, and launches both servers with hot reload. `make deploy` ships to AWS.
+### Tier 2 — + OpenClaw
+
+Install OpenClaw and run `openclaw tui`. Your agent gains persistent automation: it watches dev servers, auto-fixes errors, scaffolds endpoints, deploys to AWS, and routes tasks between a local model and a frontier model.
+
+**→ [Skills ↓](#skills) · [Config ↓](#configuration)**
+
+</td>
+<td width="33%" valign="top">
+
+### Tier 3 — + NemoClaw
+
+Add NemoClaw for sandboxed execution via OpenShell and privacy-routed local inference. Agent actions run in an isolated environment — no code leaves your machine.
+
+**→ [Configuration ↓](#configuration)**
 
 </td>
 </tr>
 </table>
 
+| Capability | Tier 1 — Any Agent | Tier 2 — OpenClaw | Tier 3 — NemoClaw |
+|---|:---:|:---:|:---:|
+| SKILL.md project context | ✓ | ✓ | ✓ |
+| Structured JSON logging | ✓ | ✓ | ✓ |
+| Dev server watching + auto-debug | — | ✓ | ✓ |
+| Custom skills (deploy, scaffold, test) | — | ✓ | ✓ |
+| Model routing (local + frontier) | — | ✓ | ✓ |
+| Sandboxed execution via OpenShell | — | — | ✓ |
+| Privacy-routed local inference | — | — | ✓ |
+
+---
+
 ## Quick Start
+
+<a name="tier-1"></a>
 
 **Prerequisites:** Python 3.12+, Node 22+, Docker, [uv](https://docs.astral.sh/uv/)
 
@@ -84,28 +131,26 @@ make setup
 make dev
 ```
 
-If you're using OpenClaw, start the TUI alongside your dev servers:
+Your agent already knows the project. Try: _Watch the dev servers and tell me if anything breaks._
+
+#### Adding OpenClaw (Tier 2)
+
+<a name="tier-2"></a>
+
+Install OpenClaw, then start the TUI alongside your dev servers:
 
 ```bash
 # In a separate terminal
 openclaw tui
 ```
 
-Your agent already knows the project. Try: _Watch the dev servers and tell me if anything breaks._
+The TUI tails both log streams and hands control to the skills in `.openclaw/skills/`. See [Skills ↓](#skills) for what's included and how to write your own.
 
-## Three Tiers
+#### Adding NemoClaw (Tier 3)
 
-ClawStack works with any AI coding agent. More tools unlock more capabilities.
+<a name="tier-3"></a>
 
-| Capability | Any Agent | OpenClaw | NemoClaw |
-|---|:---:|:---:|:---:|
-| SKILL.md project context | ✅ | ✅ | ✅ |
-| Structured JSON logging | ✅ | ✅ | ✅ |
-| Dev server watching + auto-debug | — | ✅ | ✅ |
-| Custom skills (deploy, scaffold, test) | — | ✅ | ✅ |
-| Model routing (local + frontier) | — | ✅ | ✅ |
-| Sandboxed execution via OpenShell | — | — | ✅ |
-| Privacy-routed local inference | — | — | ✅ |
+Install NemoClaw and the config in `.nemoclaw/` activates automatically. See [Configuration ↓](#configuration) for model routing and inference options.
 
 ## What's in the Box
 
@@ -157,6 +202,10 @@ OpenClaw skills are markdown instruction files that tell the agent _how_ to perf
 | `db-migrate` | Create Alembic migrations, run them, manage seed data |
 | `test` | Run pytest/vitest, interpret failures, suggest and apply fixes |
 | `git-workflow` | Feature branches, conventional commits, PR creation via `gh` |
+
+**Writing your own skills:** A skill is just a `SKILL.md` file in a new subdirectory of `.openclaw/skills/`. Write it as actionable instructions — specific commands, real file paths, decision logic — not as documentation. The [CONTRIBUTING guide](CONTRIBUTING.md#agent-skills) has the full format.
+
+**Community skills:** Share skills or find ones built by others in [GitHub Discussions → Skills](https://github.com/Benja-Pauls/ClawStack/discussions/categories/skills). If a skill is broadly useful (monitoring, Stripe integration, cron jobs, etc.), open a PR to add it to the template.
 
 ## Deploy to AWS
 

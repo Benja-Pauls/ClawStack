@@ -1,0 +1,176 @@
+# Contributing to ClawStack
+
+Thank you for your interest in contributing! ClawStack is an open-source project and contributions of all kinds are welcome — bug fixes, new features, documentation improvements, alternative infrastructure modules, and new agent skills.
+
+---
+
+## Table of Contents
+
+- [Development Setup](#development-setup)
+- [Project Structure](#project-structure)
+- [Types of Contributions](#types-of-contributions)
+- [Commit Conventions](#commit-conventions)
+- [Testing](#testing)
+- [Pull Request Process](#pull-request-process)
+- [Code Style](#code-style)
+
+---
+
+## Development Setup
+
+**Prerequisites:** Python 3.12+, Node 22+, Docker, [uv](https://docs.astral.sh/uv/)
+
+```bash
+git clone https://github.com/Benja-Pauls/ClawStack.git
+cd ClawStack
+
+# Interactive setup
+make init
+
+# Install all dependencies (Python + Node)
+make setup
+
+# Start the full stack (Postgres + backend + frontend)
+make dev
+```
+
+Your app will be at:
+- **Frontend:** http://localhost:5173
+- **Backend:** http://localhost:8000
+- **API docs:** http://localhost:8000/api/docs
+
+---
+
+## Project Structure
+
+```
+backend/          # FastAPI Python API
+frontend/         # React + Vite + TypeScript UI
+infra/            # Terraform modules (AWS)
+scripts/          # CLI tools (init, deploy)
+.skills/          # Agent-agnostic context files
+.openclaw/        # Persistent agent skills
+.github/          # CI, issue templates, PR template
+```
+
+Key patterns to understand before contributing:
+- **Routes are thin** — business logic lives in `services/`, not routes
+- **Sync SQLAlchemy** — route handlers use `def` not `async def`; FastAPI runs them in a threadpool
+- **Structured logging** — use `get_logger(__name__)` and log events as `logger.info("event_name", key=value)`
+- **UUID primary keys** — all models use UUIDs, never integer IDs
+- **Skills are markdown** — `.openclaw/skills/*/SKILL.md` and `.skills/*.md` are plain markdown
+
+---
+
+## Types of Contributions
+
+### Bug Fixes
+Open an issue first if the bug isn't already reported. Reference the issue in your PR.
+
+### New Features
+Open an issue to discuss the feature before building it. For larger changes, a brief description of your approach in the issue saves everyone time.
+
+### Infrastructure Modules
+We welcome alternative platform modules under `infra/modules/` and `infra/environments/`. If you add GCP, Azure, Fly.io, or Railway support, follow the existing module pattern (separate `main.tf`, `variables.tf`, `outputs.tf`). Document the new platform in the README's "Don't want AWS?" section.
+
+### Agent Skills
+New skills belong in `.openclaw/skills/`. Each skill is a folder containing:
+- `SKILL.md` — core instructions (30-80 lines, actionable, not documentation)
+- Optional topic files (`deploy-rollback.md`, etc.) for deeper detail
+- Optional `references/` folder for heavy docs
+
+See the [Creating Custom Skills](README.md#creating-custom-skills) section for the format.
+
+### Documentation
+Typo fixes, clarifications, and additional examples are always welcome as PRs without an issue.
+
+---
+
+## Commit Conventions
+
+We use [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+feat: add GCP Cloud Run infrastructure module
+fix: correct Vite proxy path for /api/v1 routes
+docs: add Fly.io deployment example to README
+chore: upgrade SQLAlchemy to 2.0.36
+refactor: extract auth provider selection into service
+test: add integration tests for item CRUD endpoints
+```
+
+Keep the subject line under 72 characters. Use the body for context if needed.
+
+---
+
+## Testing
+
+### Backend
+```bash
+cd backend && uv run pytest              # Run all tests
+cd backend && uv run pytest -k "items"   # Run by pattern
+cd backend && uv run pytest --tb=long    # Verbose failures
+```
+
+Tests use in-memory SQLite with transactional rollback — no running Postgres required.
+
+**When to add tests:**
+- All new API endpoints need a corresponding test in `tests/`
+- Bug fixes should include a test that would have caught the bug
+- New services should have unit tests for business logic
+
+### Frontend
+```bash
+cd frontend && npm test           # Run vitest
+cd frontend && npm run test:watch # Watch mode
+```
+
+### Full Suite
+```bash
+make test   # Runs backend + frontend tests
+make lint   # ruff + ESLint
+```
+
+CI runs on every PR. All checks must pass before merging.
+
+---
+
+## Pull Request Process
+
+1. **Fork** the repo and create a branch: `git checkout -b feat/my-feature`
+2. **Make your changes** — small, focused PRs are easier to review
+3. **Add tests** for any new behavior
+4. **Run the full suite:** `make test && make lint`
+5. **Push** and open a PR against `main`
+6. **Fill in the PR template** — description, test plan, and any screenshots for UI changes
+7. A maintainer will review within a few days
+
+PRs that break CI, lack tests for new features, or don't fill in the template will be asked to address those before merging.
+
+---
+
+## Code Style
+
+### Python (backend)
+- **Formatter:** [ruff format](https://docs.astral.sh/ruff/formatter/) — run `uv run ruff format .`
+- **Linter:** [ruff check](https://docs.astral.sh/ruff/linter/) — run `uv run ruff check .`
+- **Target:** Python 3.12+, type annotations required
+- **Imports:** sorted by ruff isort (`I` rules) — run `uv run ruff check --fix .` to auto-fix
+- **Line length:** 100 characters
+
+### TypeScript (frontend)
+- **Type checker:** `tsc --noEmit` — strict mode, no `any` without comment
+- **Linter:** ESLint with TypeScript + React Hooks plugins
+- **Run:** `npm run lint`
+- **No default exports** for hooks and utilities — named exports only (components may use default)
+
+### Terraform
+- Follow the existing module structure: `main.tf`, `variables.tf`, `outputs.tf`
+- All variables must have `description` and `type`
+- Use `terraform fmt` before committing
+
+---
+
+## Questions?
+
+Open a [GitHub Discussion](https://github.com/Benja-Pauls/ClawStack/discussions) for questions, ideas, or general feedback. Use Issues for bugs and feature requests.

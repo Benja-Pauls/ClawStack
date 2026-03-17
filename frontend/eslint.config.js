@@ -16,6 +16,8 @@ export default [
         ecmaFeatures: { jsx: true },
       },
       globals: {
+        React: "readonly",
+        HTMLButtonElement: "readonly",
         window: "readonly",
         document: "readonly",
         console: "readonly",
@@ -44,6 +46,7 @@ export default [
         { allowConstantExport: true },
       ],
       "no-unused-vars": "off",
+      "no-undef": "off" /* TypeScript handles undefined variables */,
       "@typescript-eslint/no-unused-vars": [
         "warn",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },

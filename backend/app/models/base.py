@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Generator
-from datetime import datetime, timezone
+from datetime import datetime
 from functools import lru_cache
 
 from sqlalchemy import DateTime, Engine, create_engine, func
