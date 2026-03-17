@@ -41,5 +41,5 @@ Closes #
 
 - [ ] My branch is up to date with `main`
 - [ ] I've added tests for new behavior (or explained why tests aren't needed)
-- [ ] I've updated relevant `.skills/` or `.openclaw/skills/` docs if the behavior changed
+- [ ] I've updated relevant `.skills/` docs if the behavior changed
 - [ ] I've updated the README if this change affects user-facing behavior

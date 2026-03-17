@@ -19,7 +19,7 @@
   },
   "skills": {
     "load": {
-      "extraDirs": [".openclaw/skills"],
+      "extraDirs": [".skills"],
       "watch": true
     }
   }

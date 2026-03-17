@@ -16,7 +16,7 @@ One paragraph describing the task this skill automates and when a developer woul
 
 ## Files changed / added
 
-- `.openclaw/skills/your-skill/SKILL.md`
+- `.skills/your-skill/SKILL.md`
 - (any supporting markdown files)
 
 ## Checklist

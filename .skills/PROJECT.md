@@ -64,17 +64,17 @@ make deploy env=dev   # Deploy to environment
 
 ## Agent Skills
 
-This project includes detailed action skills in `.openclaw/skills/`. These are plain markdown files — any agent can read and follow them. You do not need OpenClaw installed.
+This directory contains both context files (flat markdown) and action skills (subdirectories with SKILL.md). Any agent can read them. OpenClaw auto-discovers the SKILL.md files.
 
 | Skill | File | What it does |
 |---|---|---|
-| Dev Server | `.openclaw/skills/dev-server/SKILL.md` | Start, monitor, and auto-fix the dev environment |
-| Deploy | `.openclaw/skills/deploy/SKILL.md` | Build Docker images, push to ECR, run Terraform |
-| Scaffold | `.openclaw/skills/scaffold/SKILL.md` | Generate boilerplate for new endpoints and pages |
-| DB Migrate | `.openclaw/skills/db-migrate/SKILL.md` | Create and run Alembic migrations |
-| Test | `.openclaw/skills/test/SKILL.md` | Run and interpret pytest and vitest |
-| Git Workflow | `.openclaw/skills/git-workflow/SKILL.md` | Branches, conventional commits, PRs |
-| Find Skills | `.openclaw/skills/find-skills/SKILL.md` | Discover community skills from ClawHub |
+| Dev Server | `.skills/dev-server/SKILL.md` | Start, monitor, and auto-fix the dev environment |
+| Deploy | `.skills/deploy/SKILL.md` | Build Docker images, push to ECR, run Terraform |
+| Scaffold | `.skills/scaffold/SKILL.md` | Generate boilerplate for new endpoints and pages |
+| DB Migrate | `.skills/db-migrate/SKILL.md` | Create and run Alembic migrations |
+| Test | `.skills/test/SKILL.md` | Run and interpret pytest and vitest |
+| Git Workflow | `.skills/git-workflow/SKILL.md` | Branches, conventional commits, PRs |
+| Find Skills | `.skills/find-skills/SKILL.md` | Discover community skills from ClawHub |
 
 When you need to perform one of these tasks, read the corresponding SKILL.md and follow its instructions.
 

@@ -22,7 +22,10 @@
       "Bash(python3 -c \"import ast; ast.parse\\(open\\(''backend/migrations/versions/2026_03_17_0001-001_initial_items_table.py''\\).read\\(\\)\\); print\\(''migration: OK''\\)\")",
       "Bash(python3 -c \"import yaml; yaml.safe_load\\(open\\(''.github/workflows/ci.yml''\\)\\); print\\(''ci.yml: OK''\\)\")",
       "WebSearch",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:clawstack.app)",
+      "Bash(make test:*)",
+      "Bash(make lint:*)"
     ]
   }
 }

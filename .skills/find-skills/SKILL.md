@@ -81,11 +81,11 @@ Download the skill into the project's skills directory:
 
 ```bash
 # Create skill directory
-mkdir -p .openclaw/skills/<skill-name>
+mkdir -p .skills/<skill-name>
 
 # Download the SKILL.md
 curl -s "https://clawhub.ai/api/v1/skills/<owner>-<slug>/file?path=SKILL.md" \
-  > .openclaw/skills/<skill-name>/SKILL.md
+  > .skills/<skill-name>/SKILL.md
 ```
 
 If the skill has additional files (check the ClawHub page), download those too.
@@ -115,7 +115,7 @@ User asks: "I want to add uptime monitoring for the deployed app."
 2. Find a relevant skill (e.g., `healthcheck`, `uptime-kuma`, or `agentic-devops`)
 3. Read its SKILL.md
 4. Follow instructions, adapting any code to ClawStack patterns (Pydantic config, service layer, structured logging)
-5. If it's useful long-term, install it locally in `.openclaw/skills/`
+5. If it's useful long-term, install it locally in `.skills/`
 
 ## Skills the ClawStack Community Has Found Useful
 

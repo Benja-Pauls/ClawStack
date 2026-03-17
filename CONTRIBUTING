@@ -58,7 +58,7 @@ Key patterns to understand before contributing:
 - **Sync SQLAlchemy** — route handlers use `def` not `async def`; FastAPI runs them in a threadpool
 - **Structured logging** — use `get_logger(__name__)` and log events as `logger.info("event_name", key=value)`
 - **UUID primary keys** — all models use UUIDs, never integer IDs
-- **Skills are markdown** — `.openclaw/skills/*/SKILL.md` and `.skills/*.md` are plain markdown
+- **Skills are markdown** — `.skills/*/SKILL.md` (action skills) and `.skills/*.md` (context files) are plain markdown
 
 ---
 
@@ -74,7 +74,7 @@ Open an issue to discuss the feature before building it. For larger changes, a b
 We welcome alternative platform modules under `infra/modules/` and `infra/environments/`. If you add GCP, Azure, Fly.io, or Railway support, follow the existing module pattern (separate `main.tf`, `variables.tf`, `outputs.tf`). Document the new platform in the README's "Don't want AWS?" section.
 
 ### Agent Skills
-New skills belong in `.openclaw/skills/`. Each skill is a folder containing:
+New skills belong in `.skills/`. Each skill is a folder containing:
 - `SKILL.md` — core instructions (30-80 lines, actionable, not documentation)
 - Optional topic files (`deploy-rollback.md`, etc.) for deeper detail
 - Optional `references/` folder for heavy docs

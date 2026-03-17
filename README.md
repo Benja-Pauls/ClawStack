@@ -149,7 +149,7 @@ Install OpenClaw, then start the TUI alongside your dev servers:
 openclaw tui
 ```
 
-The TUI tails both log streams and hands control to the skills in `.openclaw/skills/`. See [Skills ↓](#skills) for what's included and how to write your own.
+The TUI tails both log streams and hands control to the skills in `.skills/`. See [Skills ↓](#skills) for what's included and how to write your own.
 
 #### Adding NemoClaw (Tier 3)
 
@@ -186,8 +186,8 @@ clawstack/
 │   ├── modules/            # networking, ecr, rds, app-runner
 │   └── environments/       # dev, staging, prod configs
 ├── scripts/                # CLI tools (init.py, deploy.sh, deploy-init.sh)
-├── .skills/                # Agent context files (any agent)
-├── .openclaw/              # OpenClaw skills + model routing config
+├── .skills/                # Agent context files + action skills
+├── .openclaw/              # OpenClaw model routing config
 ├── .nemoclaw/              # NemoClaw sandbox + inference config
 ├── docs/                   # Tutorial and guides
 ├── .github/workflows/      # CI + CD pipelines
@@ -198,7 +198,7 @@ clawstack/
 
 ## Skills
 
-Skills are markdown instruction files that tell your agent _how_ to perform tasks in your project — specific file paths, commands, and decision trees. They live in `.openclaw/skills/` and any agent can read them. OpenClaw runs them automatically; without it, point your agent at the skill file and it'll follow the instructions.
+Skills are markdown instruction files that tell your agent _how_ to perform tasks in your project — specific file paths, commands, and decision trees. They live in `.skills/` alongside the context files, and any agent can read them. OpenClaw auto-discovers them; without it, point your agent at the skill file and it'll follow the instructions.
 
 | Skill | Description |
 |---|---|
@@ -210,7 +210,7 @@ Skills are markdown instruction files that tell your agent _how_ to perform task
 | `git-workflow` | Feature branches, conventional commits, PR creation via `gh` |
 | `find-skills` | Discover and install community skills from [ClawHub](https://clawhub.ai) |
 
-**Writing your own skills:** A skill is just a `SKILL.md` file in a new subdirectory of `.openclaw/skills/`. Write it as actionable instructions — specific commands, real file paths, decision logic — not as documentation. The [CONTRIBUTING guide](CONTRIBUTING.md#agent-skills) has the full format.
+**Writing your own skills:** A skill is just a `SKILL.md` file in a new subdirectory of `.skills/`. Write it as actionable instructions — specific commands, real file paths, decision logic — not as documentation. The [CONTRIBUTING guide](CONTRIBUTING.md#agent-skills) has the full format.
 
 **Community skills:** [ClawHub](https://clawhub.ai) hosts 13,000+ community-built skills — your agent can search and install them via the `find-skills` skill. For curated picks, see [Awesome OpenClaw Skills](https://github.com/VoltAgent/awesome-openclaw-skills) or [OpenClaw Master Skills](https://github.com/LeoYeAI/openclaw-master-skills). Share ClawStack-specific skills in [GitHub Discussions → Skills](https://github.com/Benja-Pauls/ClawStack/discussions/categories/skills).
 
@@ -257,7 +257,7 @@ Model routing is configured in `.openclaw/openclaw.json`. The default model hand
   },
   "skills": {
     "load": {
-      "extraDirs": [".openclaw/skills"],
+      "extraDirs": [".skills"],
       "watch": true
     }
   }
@@ -274,7 +274,7 @@ To use cloud-only (no local models), change `primary` to your preferred cloud mo
 
 **Adjust Terraform for your AWS account.** Edit `infra/environments/{env}/main.tf` to change instance sizes, regions, or remove modules you don't need (e.g., drop the `rds` module if you already have a database).
 
-**Modify skills.** Skills are plain markdown — edit any file in `.openclaw/skills/` to match your workflow, or create new ones by adding a `SKILL.md` in a new subdirectory.
+**Modify skills.** Skills are plain markdown — edit any file in `.skills/` to match your workflow, or create new ones by adding a `SKILL.md` in a new subdirectory.
 
 ## FAQ
 
@@ -288,11 +288,11 @@ No. NemoClaw is optional and adds sandboxed execution via OpenShell and privacy-
 Yes. Set `DATABASE_URL` in `.env` to any Postgres-compatible connection string (Supabase, Neon, CockroachDB, self-hosted). For a different cloud, the app is standard Docker containers — replace the `infra/` Terraform modules or deploy to Railway, Fly.io, or any container platform.
 
 **How do I add a new API endpoint?**
-Follow the [Build Your First Feature](docs/tutorial.md) tutorial — it walks through adding a complete resource (model, migration, schemas, service, route, tests, frontend) end-to-end. You can also point your agent at the `scaffold` skill in `.openclaw/skills/` or the quick reference in `.skills/BACKEND.md`.
+Follow the [Build Your First Feature](docs/tutorial.md) tutorial — it walks through adding a complete resource (model, migration, schemas, service, route, tests, frontend) end-to-end. You can also point your agent at the `scaffold` skill in `.skills/scaffold/SKILL.md` or the quick reference in `.skills/BACKEND.md`.
 
 ## Contributing
 
-Contributions are welcome. Each skill in `.openclaw/skills/` is independently improvable — if you find a better error-detection pattern or a missing edge case, open a PR for just that skill.
+Contributions are welcome. Each skill in `.skills/` is independently improvable — if you find a better error-detection pattern or a missing edge case, open a PR for just that skill.
 
 For bugs and feature requests, [open an issue](https://github.com/Benja-Pauls/ClawStack/issues).
 

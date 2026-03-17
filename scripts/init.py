@@ -341,7 +341,7 @@ def print_next_steps(cfg: dict):
 
     if cfg["agent_tier"] >= 2:
         print(f"""  {BOLD}OpenClaw (persistent agent):{RESET}
-    {DIM}# OpenClaw skills are configured in .openclaw/skills/{RESET}
+    {DIM}# Skills live in .skills/ (any agent can read them){RESET}
     {DIM}# Model routing is configured in .openclaw/openclaw.json{RESET}
     {DIM}# See the OpenClaw docs for installation when available{RESET}
 """)
