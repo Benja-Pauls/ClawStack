@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>The first fullstack template designed for AI-agent-assisted development.</strong><br/>
-  FastAPI + React + Postgres + Terraform, pre-wired with context files and OpenClaw skills so your agent understands your project from the first commit.
+  FastAPI + React + Postgres + Terraform, pre-wired with context files and agent skills so your agent understands your project from the first commit.
 </p>
 
 <p align="center">
@@ -32,7 +32,7 @@
 
 Every AI coding session starts cold. The agent doesn't know your project structure, your conventions, or why you're using Alembic instead of raw SQL. It hallucinates paths and scaffolds patterns that don't fit.
 
-ClawStack ships with SKILL.md context files your agent reads immediately, structured JSON logging it can parse programmatically, and — with OpenClaw — automation skills for dev server watching, endpoint scaffolding, and one-command AWS deploys.
+ClawStack ships with SKILL.md context files your agent reads immediately, structured JSON logging it can parse programmatically, and automation skills for dev server watching, endpoint scaffolding, and one-command AWS deploys. The skills are plain markdown — any agent can follow them. OpenClaw makes them persistent and automatic.
 
 See [Customize ↓](#customize) for how to make this fit with your own stack.
 
@@ -57,11 +57,11 @@ See [Customize ↓](#customize) for how to make this fit with your own stack.
 </tr>
 <tr>
 <td><img src="https://img.shields.io/badge/CI-24292E?style=for-the-badge&logoColor=white" /></td>
-<td><strong>GitHub Actions · pytest · Vitest</strong><br/>Lint + test on every push · deploy workflow in <code>scripts/</code></td>
+<td><strong>GitHub Actions · pytest · Vitest</strong><br/>Lint + test on every push · CD pipeline deploys on merge to main</td>
 </tr>
 <tr>
 <td><img src="https://img.shields.io/badge/Agent_Context-7C3AED?style=for-the-badge&logoColor=white" /></td>
-<td><strong>SKILL.md files · OpenClaw skills · openclaw.json</strong><br/>Any agent reads the context files · OpenClaw/NemoClaw unlock automation</td>
+<td><strong>SKILL.md context files · agent skills · openclaw.json</strong><br/>Any agent reads the context and skills · OpenClaw/NemoClaw add persistent automation</td>
 </tr>
 </table>
 
@@ -106,7 +106,7 @@ Add NemoClaw for sandboxed execution via OpenShell and privacy-routed local infe
 | SKILL.md project context | ✓ | ✓ | ✓ |
 | Structured JSON logging | ✓ | ✓ | ✓ |
 | Dev server watching + auto-debug | — | ✓ | ✓ |
-| Custom skills (deploy, scaffold, test) | — | ✓ | ✓ |
+| Agent skills (deploy, scaffold, test) | read | read + auto-run | read + auto-run |
 | Model routing (local + frontier) | — | ✓ | ✓ |
 | Sandboxed execution via OpenShell | — | — | ✓ |
 | Privacy-routed local inference | — | — | ✓ |
@@ -122,7 +122,7 @@ Add NemoClaw for sandboxed execution via OpenShell and privacy-routed local infe
 ```bash
 # Clone the repo
 git clone https://github.com/Benja-Pauls/ClawStack.git
-cd clawstack
+cd ClawStack
 
 # Interactive setup — configures project name, cloud, DB, auth, and agent tier
 make init
@@ -189,7 +189,8 @@ clawstack/
 ├── .skills/                # Agent context files (any agent)
 ├── .openclaw/              # OpenClaw skills + model routing config
 ├── .nemoclaw/              # NemoClaw sandbox + inference config
-├── .github/workflows/      # CI pipeline (lint + test)
+├── docs/                   # Tutorial and guides
+├── .github/workflows/      # CI + CD pipelines
 ├── docker-compose.yml
 ├── Makefile
 └── .env.example
@@ -197,7 +198,7 @@ clawstack/
 
 ## Skills
 
-OpenClaw skills are markdown instruction files that tell the agent _how_ to perform tasks in your project — specific file paths, commands, and decision trees. They live in `.openclaw/skills/`.
+Skills are markdown instruction files that tell your agent _how_ to perform tasks in your project — specific file paths, commands, and decision trees. They live in `.openclaw/skills/` and any agent can read them. OpenClaw runs them automatically; without it, point your agent at the skill file and it'll follow the instructions.
 
 | Skill | Description |
 |---|---|
@@ -276,7 +277,7 @@ No. NemoClaw is optional and adds sandboxed execution via OpenShell and privacy-
 Yes. Set `DATABASE_URL` in `.env` to any Postgres-compatible connection string (Supabase, Neon, CockroachDB, self-hosted). For a different cloud, the app is standard Docker containers — replace the `infra/` Terraform modules or deploy to Railway, Fly.io, or any container platform.
 
 **How do I add a new API endpoint?**
-Use the `scaffold` skill if you're running OpenClaw, or follow the [Build Your First Feature](docs/tutorial.md) tutorial — it walks through adding a complete resource (model, migration, schemas, service, route, tests, frontend) end-to-end. For a quick reference, see `.skills/BACKEND.md`.
+Follow the [Build Your First Feature](docs/tutorial.md) tutorial — it walks through adding a complete resource (model, migration, schemas, service, route, tests, frontend) end-to-end. You can also point your agent at the `scaffold` skill in `.openclaw/skills/` or the quick reference in `.skills/BACKEND.md`.
 
 ## Contributing
 
