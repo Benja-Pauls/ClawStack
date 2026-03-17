@@ -1,4 +1,17 @@
-# Skill: Dev Server
+---
+name: clawstack-dev-server
+description: "Start, monitor, and auto-fix the ClawStack development environment. Use when: starting dev servers, debugging backend/frontend errors, watching log streams."
+metadata:
+  {
+    "openclaw":
+      {
+        "emoji": "🖥️",
+        "requires": { "bins": ["docker", "uv", "node"] },
+      },
+  }
+---
+
+# Dev Server
 
 Start, monitor, and auto-fix the ClawStack development environment.
 

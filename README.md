@@ -208,10 +208,11 @@ Skills are markdown instruction files that tell your agent _how_ to perform task
 | `db-migrate` | Create Alembic migrations, run them, manage seed data |
 | `test` | Run pytest/vitest, interpret failures, suggest and apply fixes |
 | `git-workflow` | Feature branches, conventional commits, PR creation via `gh` |
+| `find-skills` | Discover and install community skills from [ClawHub](https://clawhub.ai) |
 
 **Writing your own skills:** A skill is just a `SKILL.md` file in a new subdirectory of `.openclaw/skills/`. Write it as actionable instructions — specific commands, real file paths, decision logic — not as documentation. The [CONTRIBUTING guide](CONTRIBUTING.md#agent-skills) has the full format.
 
-**Community skills:** Share skills or find ones built by others in [GitHub Discussions → Skills](https://github.com/Benja-Pauls/ClawStack/discussions/categories/skills). If a skill is broadly useful (monitoring, Stripe integration, cron jobs, etc.), open a PR to add it to the template.
+**Community skills:** [ClawHub](https://clawhub.ai) hosts 13,000+ community-built skills — your agent can search and install them via the `find-skills` skill. For curated picks, see [Awesome OpenClaw Skills](https://github.com/VoltAgent/awesome-openclaw-skills) or [OpenClaw Master Skills](https://github.com/LeoYeAI/openclaw-master-skills). Share ClawStack-specific skills in [GitHub Discussions → Skills](https://github.com/Benja-Pauls/ClawStack/discussions/categories/skills).
 
 ## Deploy to AWS
 
@@ -233,7 +234,7 @@ For staging and prod, Terraform shows a plan for review before applying. Dev env
 
 ## Configuration
 
-Model routing is configured in `.openclaw/openclaw.json`. The primary model handles fast coding tasks locally; the fallback sends planning and architecture tasks to a frontier model.
+Model routing is configured in `.openclaw/openclaw.json`. The default model handles fast coding tasks locally; the fallback sends to a frontier model when the primary is unavailable. Named agents (like `planning`) can override the default with a stronger model.
 
 ```json
 {
@@ -244,16 +245,26 @@ Model routing is configured in `.openclaw/openclaw.json`. The primary model hand
         "fallbacks": ["anthropic/claude-opus-4-6"]
       }
     },
-    "planning": {
-      "model": {
-        "primary": "anthropic/claude-opus-4-6"
+    "list": [
+      {
+        "id": "planning",
+        "name": "Planning Agent",
+        "model": {
+          "primary": "anthropic/claude-opus-4-6"
+        }
       }
+    ]
+  },
+  "skills": {
+    "load": {
+      "extraDirs": [".openclaw/skills"],
+      "watch": true
     }
   }
 }
 ```
 
-To use cloud-only (no local models), change `primary` to your preferred cloud model and remove `fallbacks`. To swap local models, replace `codestral` with `qwen2.5-coder`, `deepseek-coder-v2`, or any Ollama-compatible model.
+To use cloud-only (no local models), change `primary` to your preferred cloud model and remove `fallbacks`. To swap local models, replace `codestral` with `qwen2.5-coder`, `deepseek-coder-v2`, or any Ollama-compatible model. The `skills.load.watch` option enables hot-reloading when you edit skill files.
 
 ## Customize
 

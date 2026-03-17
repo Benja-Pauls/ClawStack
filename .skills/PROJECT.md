@@ -61,3 +61,27 @@ make lint             # Lint backend + frontend
 make migrate          # Run database migrations
 make deploy env=dev   # Deploy to environment
 ```
+
+## Agent Skills
+
+This project includes detailed action skills in `.openclaw/skills/`. These are plain markdown files — any agent can read and follow them. You do not need OpenClaw installed.
+
+| Skill | File | What it does |
+|---|---|---|
+| Dev Server | `.openclaw/skills/dev-server/SKILL.md` | Start, monitor, and auto-fix the dev environment |
+| Deploy | `.openclaw/skills/deploy/SKILL.md` | Build Docker images, push to ECR, run Terraform |
+| Scaffold | `.openclaw/skills/scaffold/SKILL.md` | Generate boilerplate for new endpoints and pages |
+| DB Migrate | `.openclaw/skills/db-migrate/SKILL.md` | Create and run Alembic migrations |
+| Test | `.openclaw/skills/test/SKILL.md` | Run and interpret pytest and vitest |
+| Git Workflow | `.openclaw/skills/git-workflow/SKILL.md` | Branches, conventional commits, PRs |
+| Find Skills | `.openclaw/skills/find-skills/SKILL.md` | Discover community skills from ClawHub |
+
+When you need to perform one of these tasks, read the corresponding SKILL.md and follow its instructions.
+
+## Additional Context Files
+
+- `AI-INTEGRATION.md` — How to add LLM/AI features to the app (API keys, streaming, tool use)
+- `BACKEND.md` — FastAPI patterns, routing, auth, logging, config
+- `FRONTEND.md` — React, routing, API client, data fetching, styling
+- `DATABASE.md` — SQLAlchemy models, Alembic migrations, conventions
+- `DEPLOY.md` — Terraform modules, Docker builds, environment management

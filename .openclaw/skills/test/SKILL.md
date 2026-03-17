@@ -1,4 +1,17 @@
-# Skill: Test
+---
+name: clawstack-test
+description: "Run and interpret tests for ClawStack backend and frontend. Use when: running test suites, debugging test failures, checking coverage, writing new tests."
+metadata:
+  {
+    "openclaw":
+      {
+        "emoji": "🧪",
+        "requires": { "bins": ["uv", "node"] },
+      },
+  }
+---
+
+# Test
 
 Run and interpret tests for ClawStack backend and frontend.
 
@@ -13,13 +26,13 @@ cd backend && uv run pytest
 ### Run a Specific File
 
 ```bash
-cd backend && uv run pytest tests/test_routes/test_health.py
+cd backend && uv run pytest tests/test_health.py
 ```
 
 ### Run a Specific Test
 
 ```bash
-cd backend && uv run pytest tests/test_routes/test_health.py::test_health_endpoint -v
+cd backend && uv run pytest tests/test_health.py::test_health_check -v
 ```
 
 ### Run with Coverage
@@ -29,6 +42,10 @@ cd backend && uv run pytest --cov=app --cov-report=term-missing
 ```
 
 Look at the `Miss` column to find lines without test coverage.
+
+### Test Infrastructure
+
+Tests use in-memory SQLite with `StaticPool` — no running Postgres required. Each test gets a fresh session with transactional rollback via the fixtures in `tests/conftest.py`. The test client uses `dependency_overrides` to inject the test database session.
 
 ### Interpreting pytest Output
 
@@ -51,7 +68,7 @@ When a test fails:
 | `AssertionError: assert 200 == 422` | Endpoint validation rejected the request | Check request payload against Pydantic schema |
 | `sqlalchemy.exc.ProgrammingError` | Missing table or column | Run `uv run alembic upgrade head` |
 | `fixture 'X' not found` | Missing or misnamed test fixture | Check `conftest.py` files |
-| `httpx.ConnectError` | Test database not running | Start Postgres: `docker compose up -d postgres` |
+| `assert 'items' in data` fails | Response shape changed | Check if endpoint returns a wrapper object (`{Name}ListResponse`) |
 
 ## Frontend Tests (vitest)
 
@@ -64,13 +81,13 @@ cd frontend && npm test
 ### Run a Specific File
 
 ```bash
-cd frontend && npm test -- tests/components/Button.test.tsx
+cd frontend && npm test -- tests/App.test.tsx
 ```
 
 ### Run in Watch Mode
 
 ```bash
-cd frontend && npm test -- --watch
+cd frontend && npm run test:watch
 ```
 
 ### Run with Coverage
@@ -102,8 +119,15 @@ When a test fails:
 | `act() warning` | State update outside of act wrapper | Wrap async operations in `waitFor` or `act` |
 | Snapshot mismatch | Component output changed | Review the diff; update snapshot with `-u` if intentional |
 
+## Full Suite
+
+```bash
+make test    # Runs backend + frontend tests
+make lint    # Runs ruff + ESLint
+```
+
 ## Test Strategy
 
 - Write tests alongside new code. Every new endpoint gets at least one happy-path and one error test.
 - Every new component gets a render test and an interaction test.
-- Run the full suite before opening a PR: `cd backend && uv run pytest && cd ../frontend && npm test`.
+- Run the full suite before opening a PR: `make test && make lint`.

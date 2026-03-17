@@ -1,4 +1,17 @@
-# Skill: Git Workflow
+---
+name: clawstack-git-workflow
+description: "Standard git practices for ClawStack development. Use when: creating branches, writing commit messages, opening PRs, rebasing, resolving conflicts."
+metadata:
+  {
+    "openclaw":
+      {
+        "emoji": "🔀",
+        "requires": { "bins": ["git", "gh"] },
+      },
+  }
+---
+
+# Git Workflow
 
 Standard git practices for ClawStack development.
 

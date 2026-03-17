@@ -1,4 +1,17 @@
-# Skill: Database Migrations
+---
+name: clawstack-db-migrate
+description: "Manage database schema changes with Alembic in ClawStack. Use when: creating migrations, adding tables or columns, checking migration status, rolling back."
+metadata:
+  {
+    "openclaw":
+      {
+        "emoji": "🗃️",
+        "requires": { "bins": ["uv"] },
+      },
+  }
+---
+
+# Database Migrations
 
 Manage database schema changes with Alembic in ClawStack.
 
@@ -69,7 +82,7 @@ cd backend && uv run alembic downgrade <revision_id>
 
 Full workflow:
 
-1. Create the model file at `backend/app/models/{name}.py` with a class extending `Base`.
+1. Create the model file at `backend/app/models/{name}.py` — inherit from `Base` (provides `id`, `created_at`, `updated_at`).
 2. Import the model in `backend/app/models/__init__.py` so Alembic detects it.
 3. Generate the migration: `cd backend && uv run alembic revision --autogenerate -m "add {name}s table"`.
 4. Review the generated migration file.
@@ -83,16 +96,6 @@ Full workflow:
 3. Review: ensure only the expected `op.add_column` is present.
 4. Apply: `cd backend && uv run alembic upgrade head`.
 
-## Seed Data
-
-Populate the database with test/development data:
-
-```bash
-cd backend && uv run python db/seed.py
-```
-
-The seed script is idempotent. Running it multiple times will not create duplicates.
-
 ## Troubleshooting
 
 | Problem | Solution |
@@ -102,3 +105,13 @@ The seed script is idempotent. Running it multiple times will not create duplica
 | Phantom diffs in autogenerate | Compare model against DB schema manually; add to Alembic's `exclude` list if needed |
 | `relation already exists` | The migration was partially applied. Check `alembic_version` table and fix manually |
 | Migration conflicts (multiple heads) | Run `uv run alembic merge heads -m "merge migrations"` |
+
+## Seed Data
+
+Populate the database with sample development data:
+
+```bash
+python db/seed.py
+```
+
+The seed script is idempotent — running it multiple times will not create duplicates (it checks for existing rows first).
