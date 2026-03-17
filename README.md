@@ -20,6 +20,7 @@
   <a href="#tier-2">Tier 2: OpenClaw</a> ·
   <a href="#tier-3">Tier 3: NemoClaw</a> ·
   <a href="#deploy-to-aws">Deploy to AWS</a> ·
+  <a href="docs/tutorial.md">Tutorial</a> ·
   <a href="#skills">Skills</a> ·
   <a href="#configuration">Config</a> ·
   <a href="#faq">FAQ</a>
@@ -32,6 +33,8 @@
 Every AI coding session starts cold. The agent doesn't know your project structure, your conventions, or why you're using Alembic instead of raw SQL. It hallucinates paths and scaffolds patterns that don't fit.
 
 ClawStack ships with SKILL.md context files your agent reads immediately, structured JSON logging it can parse programmatically, and — with OpenClaw — automation skills for dev server watching, endpoint scaffolding, and one-command AWS deploys.
+
+See [Customize ↓](#customize) for how to make this fit with your own stack.
 
 ### The Stack
 
@@ -132,6 +135,8 @@ make dev
 ```
 
 Your agent already knows the project. Try: _Watch the dev servers and tell me if anything breaks._
+
+**Ready to build?** Follow the [Build Your First Feature](docs/tutorial.md) tutorial to add a complete Notes resource (model → migration → API → frontend) in ~15 minutes.
 
 #### Adding OpenClaw (Tier 2)
 
@@ -271,7 +276,7 @@ No. NemoClaw is optional and adds sandboxed execution via OpenShell and privacy-
 Yes. Set `DATABASE_URL` in `.env` to any Postgres-compatible connection string (Supabase, Neon, CockroachDB, self-hosted). For a different cloud, the app is standard Docker containers — replace the `infra/` Terraform modules or deploy to Railway, Fly.io, or any container platform.
 
 **How do I add a new API endpoint?**
-Use the `scaffold` skill if you're running OpenClaw, or follow the steps in `.skills/BACKEND.md`: create a route in `backend/app/routes/`, add Pydantic schemas in `schemas/`, add a service in `services/`, and register the router in `main.py`.
+Use the `scaffold` skill if you're running OpenClaw, or follow the [Build Your First Feature](docs/tutorial.md) tutorial — it walks through adding a complete resource (model, migration, schemas, service, route, tests, frontend) end-to-end. For a quick reference, see `.skills/BACKEND.md`.
 
 ## Contributing
 

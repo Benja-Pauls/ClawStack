@@ -1,0 +1,133 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
+jobs:
+  # Gate: only run if AWS credentials are configured
+  check-secrets:
+    name: Check AWS credentials
+    runs-on: ubuntu-latest
+    outputs:
+      has-aws: ${{ steps.check.outputs.has-aws }}
+    steps:
+      - id: check
+        run: |
+          if [[ -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ]]; then
+            echo "has-aws=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-aws=false" >> "$GITHUB_OUTPUT"
+            echo "⏭️  AWS credentials not configured — skipping deploy."
+            echo "   To enable CD, add AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,"
+            echo "   and AWS_REGION as repository secrets."
+          fi
+
+  # Run CI checks first (lint + test)
+  ci:
+    name: CI checks
+    needs: check-secrets
+    if: needs.check-secrets.outputs.has-aws == 'true'
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment || 'dev' }}
+    runs-on: ubuntu-latest
+    needs: [check-secrets, ci]
+    if: needs.check-secrets.outputs.has-aws == 'true'
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+      ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Determine image tag
+        id: tag
+        run: echo "tag=$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Read project name from .env.example
+        id: project
+        run: |
+          PROJECT=$(grep -E '^PROJECT_NAME=' .env.example 2>/dev/null | cut -d= -f2 || echo "clawstack")
+          echo "name=${PROJECT:-clawstack}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push backend image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ steps.tag.outputs.tag }}
+          PROJECT: ${{ steps.project.outputs.name }}
+        run: |
+          docker build \
+            -t "$ECR_REGISTRY/$PROJECT-backend:$IMAGE_TAG" \
+            -t "$ECR_REGISTRY/$PROJECT-backend:latest" \
+            backend/
+          docker push "$ECR_REGISTRY/$PROJECT-backend:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/$PROJECT-backend:latest"
+
+      - name: Build and push frontend image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ steps.tag.outputs.tag }}
+          PROJECT: ${{ steps.project.outputs.name }}
+        run: |
+          docker build \
+            -t "$ECR_REGISTRY/$PROJECT-frontend:$IMAGE_TAG" \
+            -t "$ECR_REGISTRY/$PROJECT-frontend:latest" \
+            frontend/
+          docker push "$ECR_REGISTRY/$PROJECT-frontend:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/$PROJECT-frontend:latest"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.5"
+
+      - name: Terraform Init
+        working-directory: infra/environments/${{ env.ENVIRONMENT }}
+        run: terraform init -input=false
+
+      - name: Terraform Apply
+        working-directory: infra/environments/${{ env.ENVIRONMENT }}
+        run: terraform apply -auto-approve -var "app_image_tag=${{ steps.tag.outputs.tag }}"
+
+      - name: Print app URL
+        working-directory: infra/environments/${{ env.ENVIRONMENT }}
+        run: |
+          APP_URL=$(terraform output -raw app_url 2>/dev/null || echo "not available")
+          echo "## Deploy Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Environment:** ${{ env.ENVIRONMENT }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Image tag:** ${{ steps.tag.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **App URL:** $APP_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Health check: \`curl $APP_URL/api/v1/health\`" >> "$GITHUB_STEP_SUMMARY"
