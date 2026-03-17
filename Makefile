@@ -1,0 +1,61 @@
+.PHONY: init dev dev-docker test test-backend test-frontend migrate migrate-new build lint clean setup deploy-init deploy
+
+init:
+	python3 scripts/init.py
+
+dev:
+	docker compose up -d postgres
+	@echo "Waiting for postgres..."
+	@until docker compose exec postgres pg_isready > /dev/null 2>&1; do sleep 1; done
+	@echo "Postgres ready. Starting backend and frontend..."
+	$(MAKE) -j2 _dev-backend _dev-frontend
+
+_dev-backend:
+	cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+_dev-frontend:
+	cd frontend && npm run dev
+
+dev-docker:
+	docker compose up --build
+
+test: test-backend test-frontend
+
+test-backend:
+	cd backend && uv run pytest
+
+test-frontend:
+	cd frontend && npm test
+
+migrate:
+	cd backend && uv run alembic upgrade head
+
+migrate-new:
+	cd backend && uv run alembic revision --autogenerate -m "$(name)"
+
+build:
+	docker compose build
+
+lint:
+	cd backend && uv run ruff check . && uv run ruff format --check .
+	cd frontend && npm run lint
+
+clean:
+	docker compose down -v --remove-orphans
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name .mypy_cache -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name .ruff_cache -exec rm -rf {} + 2>/dev/null || true
+	rm -rf backend/.venv frontend/node_modules
+
+setup:
+	cd backend && uv sync
+	cd frontend && npm install
+	@cp -n .env.example .env 2>/dev/null || true
+	@echo "Setup complete. Edit .env if needed, then run 'make dev'"
+
+deploy-init:
+	./scripts/deploy-init.sh
+
+deploy:
+	./scripts/deploy.sh $(env)

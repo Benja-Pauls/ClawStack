@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(uv sync:*)",
+      "Bash(python3 -m pip install uv)",
+      "Bash(npm test:*)",
+      "Bash(python3 -m uv sync)",
+      "Bash(chmod +x /Users/ben_paulson/Documents/ClawStack/scripts/deploy-init.sh /Users/ben_paulson/Documents/ClawStack/scripts/deploy.sh)",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''scripts/init.py''\\).read\\(\\)\\); print\\(''init.py: syntax OK''\\)\")",
+      "Bash(bash -n scripts/deploy-init.sh)",
+      "Bash(bash -n scripts/deploy.sh)",
+      "Bash(uv run:*)",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''scripts/init.py''\\).read\\(\\)\\); print\\(''init.py: OK''\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''backend/app/routes/auth.py''\\).read\\(\\)\\); print\\(''auth.py: OK''\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''backend/app/models/base.py''\\).read\\(\\)\\); print\\(''base.py: OK''\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''backend/app/routes/health.py''\\).read\\(\\)\\); print\\(''health.py: OK''\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''backend/app/routes/items.py''\\).read\\(\\)\\); print\\(''items.py: OK''\\)\")",
+      "Bash(bash -n /Users/ben_paulson/Documents/ClawStack/scripts/deploy.sh)",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''backend/migrations/versions/2026_03_17_0001-001_initial_items_table.py''\\).read\\(\\)\\); print\\(''migration: OK''\\)\")",
+      "Bash(python3 -c \"import yaml; yaml.safe_load\\(open\\(''.github/workflows/ci.yml''\\)\\); print\\(''ci.yml: OK''\\)\")"
+    ]
+  }
+}

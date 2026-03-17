@@ -1,0 +1,44 @@
+{
+  "$schema": "https://openclaw.dev/schemas/config/v1.json",
+  "version": "1.0.0",
+  "project": {
+    "name": "clawstack",
+    "description": "Fullstack template with AI agent integration"
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "ollama/codestral",
+        "fallbacks": ["anthropic/claude-opus-4-6"]
+      },
+      "context": {
+        "skills_dir": ".openclaw/skills",
+        "agent_context_dir": ".skills"
+      }
+    },
+    "planning": {
+      "model": {
+        "primary": "anthropic/claude-opus-4-6"
+      }
+    }
+  },
+  "security": {
+    "exec_approval": true,
+    "allowed_commands": [
+      "make *",
+      "uv run *",
+      "npm *",
+      "docker compose *",
+      "terraform plan *"
+    ],
+    "blocked_commands": [
+      "rm -rf /",
+      "terraform destroy *"
+    ]
+  },
+  "dev": {
+    "profile": "~/.openclaw-dev",
+    "log_format": "json",
+    "log_level": "debug"
+  }
+}
