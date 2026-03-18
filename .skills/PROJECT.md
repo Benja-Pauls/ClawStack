@@ -21,17 +21,20 @@ scripts/          # CLI tools (init, deploy, deploy-init)
 
 ## Tech Stack
 
-- **Backend**: FastAPI, Python 3.12+, uv, async SQLAlchemy 2.0 (asyncpg), Alembic, pydantic-settings, structlog, SlowAPI, PyJWT
-- **Frontend**: React 18, Vite, TypeScript (strict mode), Tailwind CSS v4, React Router, React Query
+- **Backend**: FastAPI, Python 3.12+, uv, async SQLAlchemy 2.0 (asyncpg), Alembic, pydantic-settings, structlog, SlowAPI, PyJWT, Sentry SDK
+- **Frontend**: React 18, Vite, TypeScript (strict mode), Tailwind CSS v4, React Router, React Query, shadcn/ui (pre-configured)
 - **Database**: PostgreSQL 16 (Docker locally, RDS in production)
+- **Cache/Queue**: Redis 7 (rate limiting storage, ARQ task queue)
+- **Background Tasks**: ARQ (async task queue on Redis)
 - **Testing**: pytest + testcontainers (real Postgres), httpx AsyncClient, Vitest
 - **Infrastructure**: Terraform, AWS (App Runner, ECR, RDS, S3)
+- **Observability**: Sentry (error tracking + tracing, optional via `SENTRY_DSN`)
 - **AI Agents**: OpenClaw, NemoClaw integration points
 
 ## Running Locally
 
 ```bash
-make dev              # Start all services (backend + frontend + db)
+make dev              # Start all services (Postgres + Redis + backend + frontend)
 docker compose up     # Alternative: run via Docker Compose
 ```
 
@@ -48,7 +51,9 @@ docker compose up     # Alternative: run via Docker Compose
 - Database engine is lazily initialized (not at import time)
 - Frontend types auto-generated from OpenAPI spec (`make types`)
 - CORS methods and headers are tightened per-environment (not wildcard)
-- Rate limiting via SlowAPI (configurable via `RATE_LIMIT` env var)
+- Rate limiting via SlowAPI (configurable via `RATE_LIMIT` env var, `RATE_LIMIT_STORAGE_URI` for backend)
+- Production validation rejects insecure defaults (SECRET_KEY, localhost DB) in staging/prod
+- SSE streaming endpoint at `/api/v1/stream` for LLM responses
 
 ## Environment Configuration
 
@@ -61,11 +66,14 @@ docker compose up     # Alternative: run via Docker Compose
 ## Common Commands
 
 ```bash
-make dev              # Start dev environment
+make dev              # Start dev environment (Postgres + Redis + backend + frontend)
 make test             # Run all tests (requires Docker for Postgres)
 make lint             # Lint backend + frontend
 make migrate          # Run database migrations
 make types            # Auto-generate frontend types from OpenAPI spec
+make seed             # Seed database with sample data
+make worker           # Start ARQ background task worker
+make ui component=X   # Add a shadcn/ui component (e.g., make ui component=button)
 make deploy env=dev   # Deploy to environment
 ```
 

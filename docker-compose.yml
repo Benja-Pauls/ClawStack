@@ -19,6 +19,19 @@ services:
     networks:
       - clawstack-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: clawstack-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - clawstack-network
+
   backend:
     build:
       context: ./backend
@@ -30,10 +43,13 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-clawstack}:${POSTGRES_PASSWORD:-clawstack}@postgres:5432/${POSTGRES_DB:-clawstack}
+      RATE_LIMIT_STORAGE_URI: redis://redis:6379
     volumes:
       - ./backend:/app
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - clawstack-network

@@ -112,6 +112,16 @@ class Settings(BaseSettings):
         default="100/minute",
         description="Default rate limit per IP (e.g., '100/minute', '1000/hour')",
     )
+    RATE_LIMIT_STORAGE_URI: str = Field(
+        default="memory://",
+        description="Rate limit storage backend (memory:// for dev, redis://host:6379 for prod)",
+    )
+
+    # Observability
+    SENTRY_DSN: str = Field(
+        default="",
+        description="Sentry DSN for error tracking (leave empty to disable)",
+    )
 
     # Nested configs
     db: DBConfig = DBConfig()

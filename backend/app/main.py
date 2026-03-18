@@ -31,6 +31,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     # Startup
     setup_logging()
+
+    # Initialize Sentry error tracking if configured
+    if settings.SENTRY_DSN:
+        import sentry_sdk
+
+        sentry_sdk.init(
+            dsn=settings.SENTRY_DSN,
+            environment=settings.ENVIRONMENT,
+            release=settings.VERSION,
+            traces_sample_rate=0.1 if settings.is_prod else 1.0,
+            profiles_sample_rate=0.1 if settings.is_prod else 0.0,
+        )
+        logger.info("sentry_initialized", environment=settings.ENVIRONMENT)
+
     logger.info(
         "application_starting",
         environment=settings.ENVIRONMENT,

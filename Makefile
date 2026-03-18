@@ -1,10 +1,10 @@
-.PHONY: init dev dev-docker test test-backend test-frontend migrate migrate-new build lint clean setup deploy-init deploy types seed
+.PHONY: init dev dev-docker test test-backend test-frontend migrate migrate-new build lint clean setup deploy-init deploy types seed worker ui
 
 init:
 	python3 scripts/init.py
 
 dev:
-	docker compose up -d postgres
+	docker compose up -d postgres redis
 	@echo "Waiting for postgres..."
 	@until docker compose exec postgres pg_isready > /dev/null 2>&1; do sleep 1; done
 	@echo "Postgres ready. Starting backend and frontend..."
@@ -63,9 +63,15 @@ deploy:
 seed:
 	cd backend && uv run python -m app.cli.seed
 
+worker:
+	cd backend && uv run arq app.worker.settings.WorkerSettings
+
+ui:
+	@cd frontend && npx shadcn@latest add $(component)
+
 types:
 	@echo "Generating TypeScript types from OpenAPI spec..."
 	@cd backend && uv run python scripts/export_openapi.py > ../frontend/src/types/openapi.json
-	@cd frontend && npx openapi-typescript src/types/openapi.json -o src/types/api.generated.ts
+	@cd frontend && ./node_modules/.bin/openapi-typescript src/types/openapi.json -o src/types/api.generated.ts
 	@rm -f frontend/src/types/openapi.json
 	@echo "Types written to frontend/src/types/api.generated.ts"
