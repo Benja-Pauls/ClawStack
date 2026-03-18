@@ -12,7 +12,7 @@ from collections.abc import AsyncGenerator, Generator
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from testcontainers.postgres import PostgresContainer
 
 from app.main import create_app
@@ -50,22 +50,21 @@ async def create_tables(test_engine) -> AsyncGenerator[None, None]:
 async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     """Provide a transactional async database session for each test.
 
-    Rolls back after each test to ensure isolation.
+    Uses ``join_transaction_block=True`` so that when route handlers
+    call ``await db.commit()``, SQLAlchemy commits a SAVEPOINT instead
+    of the outer transaction.  This lets the fixture roll back
+    everything after each test, keeping tests fully isolated.
     """
-    async_session = async_sessionmaker(
-        autocommit=False,
-        autoflush=False,
-        bind=test_engine,
-    )
-
     async with test_engine.connect() as connection:
         transaction = await connection.begin()
-        session = async_session(bind=connection)
+
+        session = AsyncSession(bind=connection, join_transaction_block=True)
 
         yield session
 
         await session.close()
-        await transaction.rollback()
+        if transaction.is_active:
+            await transaction.rollback()
 
 
 @pytest.fixture()
