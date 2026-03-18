@@ -1,67 +1,85 @@
 """Pytest fixtures for the ClawStack backend test suite.
 
-Provides a test client backed by an in-memory SQLite database so tests
-run without requiring a PostgreSQL instance.
+Uses testcontainers to spin up a real PostgreSQL instance so tests
+exercise the same database features (UUID columns, ON CONFLICT,
+JSONB operators, etc.) used in production. The container is created
+once per test session and reused across all tests.
 """
 
 from __future__ import annotations
 
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import StaticPool, create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from testcontainers.postgres import PostgresContainer
 
 from app.main import create_app
 from app.models.base import Base, get_db
 
-# In-memory SQLite for tests (no PostgreSQL dependency)
-TEST_DATABASE_URL = "sqlite://"
 
-test_engine = create_engine(
-    TEST_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+@pytest.fixture(scope="session")
+def postgres_container() -> Generator[PostgresContainer, None, None]:
+    """Start a real PostgreSQL container for the test session."""
+    with PostgresContainer("postgres:16-alpine") as pg:
+        yield pg
 
-TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+@pytest.fixture(scope="session")
+def test_engine(postgres_container: PostgresContainer):
+    """Create an async engine connected to the test Postgres container."""
+    # testcontainers gives us a psycopg2 URL; convert to asyncpg
+    sync_url = postgres_container.get_connection_url()
+    async_url = sync_url.replace("psycopg2", "asyncpg")
+    return create_async_engine(async_url, echo=False)
 
 
 @pytest.fixture(scope="session", autouse=True)
-def create_tables() -> Generator[None, None, None]:
+async def create_tables(test_engine) -> AsyncGenerator[None, None]:
     """Create all tables once per test session."""
-    Base.metadata.create_all(bind=test_engine)
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     yield
-    Base.metadata.drop_all(bind=test_engine)
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await test_engine.dispose()
 
 
 @pytest.fixture()
-def db_session() -> Generator[Session, None, None]:
-    """Provide a transactional database session for each test.
+async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
+    """Provide a transactional async database session for each test.
 
     Rolls back after each test to ensure isolation.
     """
-    connection = test_engine.connect()
-    transaction = connection.begin()
-    session = TestSessionLocal(bind=connection)
+    async_session = async_sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=test_engine,
+    )
 
-    yield session
+    async with test_engine.connect() as connection:
+        transaction = await connection.begin()
+        session = async_session(bind=connection)
 
-    session.close()
-    transaction.rollback()
-    connection.close()
+        yield session
+
+        await session.close()
+        await transaction.rollback()
 
 
 @pytest.fixture()
-def client(db_session: Session) -> Generator[TestClient, None, None]:
-    """Provide a FastAPI test client with the test DB session injected."""
+async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    """Provide an async test client with the test DB session injected."""
 
-    def override_get_db() -> Generator[Session, None, None]:
+    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
 
     app = create_app()
     app.dependency_overrides[get_db] = override_get_db
 
-    with TestClient(app) as test_client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as test_client:
         yield test_client

@@ -1,6 +1,6 @@
 ---
 skill: project-overview
-version: 1
+version: 2
 ---
 
 # ClawStack Project Overview
@@ -14,16 +14,17 @@ backend/          # FastAPI Python backend (uv package manager)
 frontend/         # React + Vite + TypeScript + Tailwind frontend
 infra/            # Terraform IaC for AWS deployment
 scripts/          # CLI tools (init, deploy, deploy-init)
-.openclaw/        # OpenClaw agent configuration and skills
-.skills/          # Agent context files (this directory)
+.openclaw/        # OpenClaw agent configuration
+.skills/          # Agent context files + action skills (this directory)
 .nemoclaw/        # NemoClaw sandbox configuration
 ```
 
 ## Tech Stack
 
-- **Backend**: FastAPI, Python 3.12+, uv, SQLAlchemy (sync), Alembic, pydantic-settings, structlog, PyJWT
+- **Backend**: FastAPI, Python 3.12+, uv, async SQLAlchemy 2.0 (asyncpg), Alembic, pydantic-settings, structlog, SlowAPI, PyJWT
 - **Frontend**: React 18, Vite, TypeScript (strict mode), Tailwind CSS v4, React Router, React Query
 - **Database**: PostgreSQL 16 (Docker locally, RDS in production)
+- **Testing**: pytest + testcontainers (real Postgres), httpx AsyncClient, Vitest
 - **Infrastructure**: Terraform, AWS (App Runner, ECR, RDS, S3)
 - **AI Agents**: OpenClaw, NemoClaw integration points
 
@@ -42,8 +43,12 @@ docker compose up     # Alternative: run via Docker Compose
 - TypeScript strict mode is enforced in frontend
 - UUID primary keys on all database tables
 - snake_case for Python/SQL, camelCase for TypeScript
-- Route handlers use sync `def` (not `async def`) when calling sync SQLAlchemy
+- Route handlers use `async def` with async SQLAlchemy (asyncpg driver)
+- Services return `None`/domain values — never raise HTTPException (routes translate)
 - Database engine is lazily initialized (not at import time)
+- Frontend types auto-generated from OpenAPI spec (`make types`)
+- CORS methods and headers are tightened per-environment (not wildcard)
+- Rate limiting via SlowAPI (configurable via `RATE_LIMIT` env var)
 
 ## Environment Configuration
 
@@ -51,14 +56,16 @@ docker compose up     # Alternative: run via Docker Compose
 - Backend config via pydantic-settings: nested vars use `__` delimiter (e.g., `DB__POOL_SIZE`)
 - Frontend env vars prefixed with `VITE_`
 - `CORS_ORIGINS` accepts JSON array format: `["http://localhost:5173"]`
+- `DATABASE_URL` uses async driver: `postgresql+asyncpg://...`
 
 ## Common Commands
 
 ```bash
 make dev              # Start dev environment
-make test             # Run all tests
+make test             # Run all tests (requires Docker for Postgres)
 make lint             # Lint backend + frontend
 make migrate          # Run database migrations
+make types            # Auto-generate frontend types from OpenAPI spec
 make deploy env=dev   # Deploy to environment
 ```
 
@@ -81,7 +88,7 @@ When you need to perform one of these tasks, read the corresponding SKILL.md and
 ## Additional Context Files
 
 - `AI-INTEGRATION.md` — How to add LLM/AI features to the app (API keys, streaming, tool use)
-- `BACKEND.md` — FastAPI patterns, routing, auth, logging, config
+- `BACKEND.md` — FastAPI patterns, routing, auth, logging, config, rate limiting
 - `FRONTEND.md` — React, routing, API client, data fetching, styling
-- `DATABASE.md` — SQLAlchemy models, Alembic migrations, conventions
+- `DATABASE.md` — SQLAlchemy async models, Alembic migrations, conventions
 - `DEPLOY.md` — Terraform modules, Docker builds, environment management

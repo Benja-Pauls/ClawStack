@@ -13,9 +13,11 @@ from app.models.base import Base
 from app.models.item import Item
 
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql://clawstack:clawstack@localhost:5432/clawstack"
+# The app uses an async URL (postgresql+asyncpg://); convert to sync for seeding
+_raw_url = os.getenv(
+    "DATABASE_URL", "postgresql+asyncpg://clawstack:clawstack@localhost:5432/clawstack"
 )
+DATABASE_URL = _raw_url.replace("+asyncpg", "")
 
 SEED_ITEMS = [
     {

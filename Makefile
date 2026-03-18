@@ -1,4 +1,4 @@
-.PHONY: init dev dev-docker test test-backend test-frontend migrate migrate-new build lint clean setup deploy-init deploy
+.PHONY: init dev dev-docker test test-backend test-frontend migrate migrate-new build lint clean setup deploy-init deploy types
 
 init:
 	python3 scripts/init.py
@@ -59,3 +59,8 @@ deploy-init:
 
 deploy:
 	./scripts/deploy.sh $(env)
+
+types:
+	@echo "Generating TypeScript types from OpenAPI spec..."
+	@cd frontend && npx openapi-typescript http://localhost:8000/api/openapi.json -o src/types/api.generated.ts
+	@echo "Types written to frontend/src/types/api.generated.ts"

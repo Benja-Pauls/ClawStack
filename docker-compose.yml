@@ -29,7 +29,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-clawstack}:${POSTGRES_PASSWORD:-clawstack}@postgres:5432/${POSTGRES_DB:-clawstack}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-clawstack}:${POSTGRES_PASSWORD:-clawstack}@postgres:5432/${POSTGRES_DB:-clawstack}
     volumes:
       - ./backend:/app
     depends_on:

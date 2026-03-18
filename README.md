@@ -23,7 +23,7 @@
   <a href="docs/tutorial.md">Tutorial</a> ·
   <a href="#skills">Skills</a> ·
   <a href="#configuration">Config</a> ·
-  <a href="#faq">FAQ</a>
+  <a href="docs/faq.md">FAQ</a>
 </p>
 
 ---
@@ -45,11 +45,11 @@ See [Customize ↓](#customize) for how to make this fit with your own stack.
 </tr>
 <tr>
 <td><img src="https://img.shields.io/badge/Backend-22C55E?style=for-the-badge&logoColor=white" /></td>
-<td><strong>FastAPI · Python 3.12 · uv</strong><br/>Pydantic settings · structured JSON logging · typed schemas</td>
+<td><strong>FastAPI · Python 3.12 · uv · async SQLAlchemy</strong><br/>Pydantic settings · structured JSON logging · rate limiting · typed schemas</td>
 </tr>
 <tr>
 <td><img src="https://img.shields.io/badge/Database-336791?style=for-the-badge&logoColor=white" /></td>
-<td><strong>PostgreSQL · SQLAlchemy 2.0 · Alembic</strong><br/>Docker locally · RDS in AWS · migrations via Alembic</td>
+<td><strong>PostgreSQL · SQLAlchemy 2.0 (async) · Alembic</strong><br/>asyncpg driver · Docker locally · RDS in AWS · migrations via Alembic</td>
 </tr>
 <tr>
 <td><img src="https://img.shields.io/badge/Infra-FF9900?style=for-the-badge&logoColor=white" /></td>
@@ -57,7 +57,7 @@ See [Customize ↓](#customize) for how to make this fit with your own stack.
 </tr>
 <tr>
 <td><img src="https://img.shields.io/badge/CI-24292E?style=for-the-badge&logoColor=white" /></td>
-<td><strong>GitHub Actions · pytest · Vitest</strong><br/>Lint + test on every push · CD pipeline deploys on merge to main</td>
+<td><strong>GitHub Actions · pytest + testcontainers · Vitest</strong><br/>Tests against real Postgres · lint on every push · CD pipeline deploys on merge</td>
 </tr>
 <tr>
 <td><img src="https://img.shields.io/badge/Agent_Context-7C3AED?style=for-the-badge&logoColor=white" /></td>
@@ -276,19 +276,20 @@ To use cloud-only (no local models), change `primary` to your preferred cloud mo
 
 **Modify skills.** Skills are plain markdown — edit any file in `.skills/` to match your workflow, or create new ones by adding a `SKILL.md` in a new subdirectory.
 
-## FAQ
+## Architectural Decisions
 
-**Do I need OpenClaw to use this?**
-No. The `.skills/` context files are plain markdown that works with Claude Code, Cursor, Copilot, or any agent that can read files. OpenClaw adds persistent automation (dev server watching, one-command deploy skills) but isn't required.
+These are deliberate choices, not gaps. See [FAQ](docs/faq.md) for full rationale.
 
-**Do I need NemoClaw?**
-No. NemoClaw is optional and adds sandboxed execution via OpenShell and privacy-routed local inference via Nemotron models. The config in `.nemoclaw/` activates when NemoClaw is installed.
-
-**Can I use a different database or cloud provider?**
-Yes. Set `DATABASE_URL` in `.env` to any Postgres-compatible connection string (Supabase, Neon, CockroachDB, self-hosted). For a different cloud, the app is standard Docker containers — replace the `infra/` Terraform modules or deploy to Railway, Fly.io, or any container platform.
-
-**How do I add a new API endpoint?**
-Follow the [Build Your First Feature](docs/tutorial.md) tutorial — it walks through adding a complete resource (model, migration, schemas, service, route, tests, frontend) end-to-end. You can also point your agent at the `scaffold` skill in `.skills/scaffold/SKILL.md` or the quick reference in `.skills/BACKEND.md`.
+| Decision | Why |
+|---|---|
+| **Async SQLAlchemy** | AI agent apps multiplex long-running LLM calls (2-30s). Async handles thousands of concurrent connections vs. ~40 with sync threadpool. |
+| **Testcontainers (real Postgres)** | UUID columns, `ON CONFLICT`, JSONB operators don't exist in SQLite. Real Postgres in CI catches real bugs. |
+| **asyncpg driver** | Purpose-built async C driver — faster than psycopg async mode, fewer edge cases with SQLAlchemy async engine. |
+| **No component library** | Opinionated choice. Tailwind + clean structure included; `npx shadcn@latest init` takes 5 minutes when you're ready. |
+| **AWS App Runner** | Zero-config auto-scaling, TLS, health checks. Swap to ECS/Fargate Terraform module for GPU/sidecar needs. |
+| **Rate limiting (in-memory)** | Works single-instance out of the box. Point at Redis for multi-instance production. |
+| **`openapi-typescript`** | Auto-generates frontend types from FastAPI's OpenAPI spec via `make types`. No manual schema mirroring. |
+| **Domain exceptions in services** | Services return `None`/raise domain errors, routes translate to HTTP. Services are reusable in CLI tools, workers, event handlers. |
 
 ## Contributing
 

@@ -38,6 +38,21 @@ class AuthConfig(BaseSettings):
     audience: str = Field(default="", description="JWT audience for validation")
 
 
+class CORSConfig(BaseSettings):
+    """Per-environment CORS configuration."""
+
+    model_config = SettingsConfigDict(env_prefix="CORS__")
+
+    allow_methods: list[str] = Field(
+        default=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        description="Allowed HTTP methods",
+    )
+    allow_headers: list[str] = Field(
+        default=["Authorization", "Content-Type", "X-Request-ID"],
+        description="Allowed HTTP headers",
+    )
+
+
 class Settings(BaseSettings):
     """Main application settings.
 
@@ -65,10 +80,10 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
-    # Database
+    # Database (async driver — use postgresql+asyncpg:// for async SQLAlchemy)
     DATABASE_URL: str = Field(
-        default="postgresql://localhost/clawstack",
-        description="PostgreSQL connection string",
+        default="postgresql+asyncpg://localhost/clawstack",
+        description="PostgreSQL async connection string (asyncpg driver)",
     )
 
     # Security
@@ -92,9 +107,16 @@ class Settings(BaseSettings):
         description="Auth provider: clerk, auth0, or custom",
     )
 
+    # Rate limiting
+    RATE_LIMIT: str = Field(
+        default="100/minute",
+        description="Default rate limit per IP (e.g., '100/minute', '1000/hour')",
+    )
+
     # Nested configs
     db: DBConfig = DBConfig()
     auth: AuthConfig = AuthConfig()
+    cors: CORSConfig = CORSConfig()
 
     @property
     def is_dev(self) -> bool:

@@ -146,7 +146,7 @@ from __future__ import annotations
 import uuid
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging_config import get_logger
 from app.models.note import Note
@@ -156,53 +156,59 @@ logger = get_logger(__name__)
 
 
 class NoteService:
-    """Service for note CRUD operations."""
+    """Service for note CRUD operations.
 
-    def __init__(self, db: Session) -> None:
+    Services return None or domain values — never HTTPException.
+    The route layer translates service results into HTTP responses.
+    """
+
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    def list_notes(self, skip: int = 0, limit: int = 20) -> list[Note]:
+    async def list_notes(self, skip: int = 0, limit: int = 20) -> list[Note]:
         stmt = select(Note).order_by(Note.created_at.desc()).offset(skip).limit(limit)
-        return list(self.db.execute(stmt).scalars().all())
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
 
-    def count_notes(self) -> int:
+    async def count_notes(self) -> int:
         stmt = select(func.count()).select_from(Note)
-        result = self.db.execute(stmt).scalar()
-        return result or 0
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0
 
-    def get_note(self, note_id: uuid.UUID) -> Note | None:
+    async def get_note(self, note_id: uuid.UUID) -> Note | None:
         stmt = select(Note).where(Note.id == note_id)
-        return self.db.execute(stmt).scalar_one_or_none()
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
 
-    def create_note(self, data: NoteCreate) -> Note:
+    async def create_note(self, data: NoteCreate) -> Note:
         note = Note(title=data.title, body=data.body)
         self.db.add(note)
-        self.db.commit()
-        self.db.refresh(note)
+        await self.db.commit()
+        await self.db.refresh(note)
         logger.info("note_created", note_id=str(note.id), title=note.title)
         return note
 
-    def update_note(self, note_id: uuid.UUID, data: NoteUpdate) -> Note | None:
-        note = self.get_note(note_id)
+    async def update_note(self, note_id: uuid.UUID, data: NoteUpdate) -> Note | None:
+        note = await self.get_note(note_id)
         if note is None:
             return None
         update_data = data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(note, field, value)
-        self.db.commit()
-        self.db.refresh(note)
+        await self.db.commit()
+        await self.db.refresh(note)
         return note
 
-    def delete_note(self, note_id: uuid.UUID) -> bool:
-        note = self.get_note(note_id)
+    async def delete_note(self, note_id: uuid.UUID) -> bool:
+        note = await self.get_note(note_id)
         if note is None:
             return False
-        self.db.delete(note)
-        self.db.commit()
+        await self.db.delete(note)
+        await self.db.commit()
         return True
 ```
 
-**Pattern:** Services own all database logic. Routes are thin wrappers that validate input, call the service, and return responses. This keeps business logic testable without HTTP.
+**Pattern:** Services own all database logic and never raise HTTPException. Routes are thin wrappers that validate input, call the service, and translate results (None → 404) into HTTP responses. This keeps services reusable in CLI tools, background workers, and event handlers.
 
 ---
 
@@ -218,7 +224,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging_config import get_logger
 from app.models.base import get_db
@@ -230,18 +236,18 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/notes", tags=["notes"])
 
 
-def get_note_service(db: Session = Depends(get_db)) -> NoteService:
+async def get_note_service(db: AsyncSession = Depends(get_db)) -> NoteService:
     return NoteService(db)
 
 
 @router.get("", response_model=NoteListResponse)
-def list_notes(
+async def list_notes(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     service: NoteService = Depends(get_note_service),
 ) -> NoteListResponse:
-    notes = service.list_notes(skip=skip, limit=limit)
-    total = service.count_notes()
+    notes = await service.list_notes(skip=skip, limit=limit)
+    total = await service.count_notes()
     return NoteListResponse(
         notes=[NoteResponse.model_validate(n) for n in notes],
         total=total,
@@ -251,47 +257,47 @@ def list_notes(
 
 
 @router.post("", response_model=NoteResponse, status_code=status.HTTP_201_CREATED)
-def create_note(
+async def create_note(
     payload: NoteCreate,
     service: NoteService = Depends(get_note_service),
 ) -> NoteResponse:
-    note = service.create_note(payload)
+    note = await service.create_note(payload)
     return NoteResponse.model_validate(note)
 
 
 @router.get("/{note_id}", response_model=NoteResponse)
-def get_note(
+async def get_note(
     note_id: uuid.UUID,
     service: NoteService = Depends(get_note_service),
 ) -> NoteResponse:
-    note = service.get_note(note_id)
+    note = await service.get_note(note_id)
     if note is None:
         raise HTTPException(status_code=404, detail=f"Note {note_id} not found")
     return NoteResponse.model_validate(note)
 
 
 @router.put("/{note_id}", response_model=NoteResponse)
-def update_note(
+async def update_note(
     note_id: uuid.UUID,
     payload: NoteUpdate,
     service: NoteService = Depends(get_note_service),
 ) -> NoteResponse:
-    note = service.update_note(note_id, payload)
+    note = await service.update_note(note_id, payload)
     if note is None:
         raise HTTPException(status_code=404, detail=f"Note {note_id} not found")
     return NoteResponse.model_validate(note)
 
 
 @router.delete("/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_note(
+async def delete_note(
     note_id: uuid.UUID,
     service: NoteService = Depends(get_note_service),
 ) -> None:
-    if not service.delete_note(note_id):
+    if not await service.delete_note(note_id):
         raise HTTPException(status_code=404, detail=f"Note {note_id} not found")
 ```
 
-**Key pattern:** Route handlers are `def`, not `async def`, because we use synchronous SQLAlchemy. FastAPI runs sync handlers in a threadpool automatically.
+**Key pattern:** Route handlers are `async def` with async SQLAlchemy. This is critical for AI agent apps where LLM API calls block for seconds — async handles thousands of concurrent connections without threading limits. Services return `None` for not-found cases; routes translate that to HTTP 404.
 
 Register the router in `backend/app/main.py`. Add the import and include:
 
@@ -313,13 +319,15 @@ Create `backend/tests/test_notes.py`:
 
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
+import pytest
+from httpx import AsyncClient
 
 
-def test_notes_crud_lifecycle(client: TestClient) -> None:
+@pytest.mark.asyncio
+async def test_notes_crud_lifecycle(client: AsyncClient) -> None:
     """Test full CRUD lifecycle for notes."""
     # Create
-    resp = client.post("/api/v1/notes", json={"title": "My Note", "body": "Hello world"})
+    resp = await client.post("/api/v1/notes", json={"title": "My Note", "body": "Hello world"})
     assert resp.status_code == 201
     note = resp.json()
     note_id = note["id"]
@@ -327,34 +335,35 @@ def test_notes_crud_lifecycle(client: TestClient) -> None:
     assert note["body"] == "Hello world"
 
     # Read
-    resp = client.get(f"/api/v1/notes/{note_id}")
+    resp = await client.get(f"/api/v1/notes/{note_id}")
     assert resp.status_code == 200
     assert resp.json()["title"] == "My Note"
 
     # Update
-    resp = client.put(f"/api/v1/notes/{note_id}", json={"title": "Updated"})
+    resp = await client.put(f"/api/v1/notes/{note_id}", json={"title": "Updated"})
     assert resp.status_code == 200
     assert resp.json()["title"] == "Updated"
     assert resp.json()["body"] == "Hello world"  # unchanged
 
     # List
-    resp = client.get("/api/v1/notes")
+    resp = await client.get("/api/v1/notes")
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] >= 1
 
     # Delete
-    resp = client.delete(f"/api/v1/notes/{note_id}")
+    resp = await client.delete(f"/api/v1/notes/{note_id}")
     assert resp.status_code == 204
 
     # Verify deleted
-    resp = client.get(f"/api/v1/notes/{note_id}")
+    resp = await client.get(f"/api/v1/notes/{note_id}")
     assert resp.status_code == 404
 
 
-def test_create_note_validation(client: TestClient) -> None:
+@pytest.mark.asyncio
+async def test_create_note_validation(client: AsyncClient) -> None:
     """Empty title should return 422."""
-    resp = client.post("/api/v1/notes", json={"title": ""})
+    resp = await client.post("/api/v1/notes", json={"title": ""})
     assert resp.status_code == 422
 ```
 

@@ -1,14 +1,15 @@
 ---
 skill: database
-version: 1
+version: 2
 ---
 
-# Database Guide (PostgreSQL + SQLAlchemy + Alembic)
+# Database Guide (PostgreSQL + async SQLAlchemy + Alembic)
 
 ## Setup
 
 - **Local**: PostgreSQL 16 via Docker Compose (auto-started with `make dev`)
 - **Production**: AWS RDS PostgreSQL, provisioned via Terraform
+- **Driver**: asyncpg (pure C async driver for asyncio)
 
 ## SQLAlchemy Models
 
@@ -33,10 +34,11 @@ class Item(Base):
 4. Generate migration: `make migrate-new name="add_items_table"`
 5. Run migration: `make migrate`
 6. Add service layer in `services/` and route in `routes/`
+7. Run `make types` to auto-generate frontend TypeScript types
 
 ## Migrations (Alembic)
 
-Migration files live in `backend/migrations/versions/`.
+Migration files live in `backend/migrations/versions/`. Alembic uses the async engine natively (see `migrations/env.py`).
 
 ```bash
 make migrate-new name="description"   # Generate new migration
@@ -56,19 +58,29 @@ Always review generated migrations before applying. Alembic autogenerate may mis
 
 ## Seed Data
 
-Seed scripts can be added to `scripts/seed.py` for development/testing.
+Populate the database with sample development data:
+
+```bash
+python db/seed.py
+```
+
+The seed script is idempotent — running it multiple times will not create duplicates. It auto-converts the async DATABASE_URL to sync for one-off execution.
 
 ## Database Session
 
-Use synchronous sessions via dependency injection:
+Use async sessions via dependency injection:
 
 ```python
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.base import get_db
 
-def my_route(db: Session = Depends(get_db)):
-    result = db.execute(select(Item))
+async def my_route(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Item))
 ```
 
 Never create sessions manually in route handlers. Always use the `get_db` dependency.
 The database engine is lazily initialized — it won't attempt a connection until first use.
+
+## Testing
+
+Tests use a real PostgreSQL instance via testcontainers (not SQLite). Docker must be running. The test container is created once per session and reused. Each test gets a transactional rollback for isolation.

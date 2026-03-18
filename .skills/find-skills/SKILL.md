@@ -103,7 +103,7 @@ Community skills are generic. When following a community skill in this project, 
 - **Python packages**: use `uv add` not `pip install`
 - **Config/secrets**: add to `backend/app/config.py` as a Pydantic settings class, set via env vars in `.env`
 - **Service layer**: new integrations go in `backend/app/services/`, not in route handlers
-- **Route handlers**: use sync `def` with `Session = Depends(get_db)`, not `async def`
+- **Route handlers**: use `async def` with `AsyncSession = Depends(get_db)`
 - **Frontend API calls**: add typed functions in `frontend/src/api/`, hooks in `frontend/src/hooks/`
 - **Logging**: use `get_logger(__name__)` with structured JSON events
 

@@ -1,7 +1,7 @@
-"""SQLAlchemy base model and database engine configuration.
+"""SQLAlchemy base model and async database engine configuration.
 
 Provides the declarative base with common fields (id, created_at, updated_at)
-and the database session factory.
+and the async database session factory.
 
 The engine and session factory are lazily initialized to avoid triggering
 database connections at import time (which would fail during linting,
@@ -11,31 +11,35 @@ IDE indexing, or when Postgres isn't running).
 from __future__ import annotations
 
 import uuid
-from collections.abc import Generator
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from functools import lru_cache
 
-from sqlalchemy import DateTime, Engine, create_engine, func
+from sqlalchemy import DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
-    Session,
     mapped_column,
-    sessionmaker,
 )
 
 from app.config import settings
 
 
 @lru_cache(maxsize=1)
-def get_engine() -> Engine:
-    """Create and cache the database engine.
+def get_engine() -> AsyncEngine:
+    """Create and cache the async database engine.
 
     Lazily initialized on first call to avoid connection attempts
     at module import time.
     """
-    return create_engine(
+    return create_async_engine(
         settings.DATABASE_URL,
         pool_size=settings.db.pool_size,
         max_overflow=settings.db.max_overflow,
@@ -46,27 +50,24 @@ def get_engine() -> Engine:
 
 
 @lru_cache(maxsize=1)
-def get_session_factory() -> sessionmaker[Session]:
-    """Create and cache the session factory bound to the engine."""
-    return sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Create and cache the async session factory bound to the engine."""
+    return async_sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
 
 
-def get_db() -> Generator[Session, None, None]:
-    """FastAPI dependency that provides a database session.
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency that provides an async database session.
 
     Yields a session and ensures it is closed after the request.
 
     Usage:
         @router.get("/items")
-        def list_items(db: Session = Depends(get_db)):
+        async def list_items(db: AsyncSession = Depends(get_db)):
             ...
     """
     session_factory = get_session_factory()
-    db = session_factory()
-    try:
+    async with session_factory() as db:
         yield db
-    finally:
-        db.close()
 
 
 class Base(DeclarativeBase):

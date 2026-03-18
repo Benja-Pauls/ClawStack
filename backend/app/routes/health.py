@@ -43,23 +43,20 @@ async def health_check() -> HealthResponse:
     response_model=HealthResponse,
     summary="Readiness check with dependency verification",
 )
-def readiness_check() -> HealthResponse | JSONResponse:
+async def readiness_check() -> HealthResponse | JSONResponse:
     """Check that the application and all dependencies are ready.
 
     Verifies database connectivity. Returns 503 if any dependency
     is unavailable.
-
-    NOTE: Uses sync def because it calls synchronous SQLAlchemy engine.
-    FastAPI runs this in a threadpool automatically.
     """
     db_healthy = False
     details: dict[str, str] = {}
 
     try:
         engine = get_engine()
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-            conn.commit()
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+            await conn.commit()
         db_healthy = True
         details["database"] = "connected"
     except Exception as exc:

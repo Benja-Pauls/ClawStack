@@ -2,14 +2,11 @@
 
 This module shows the recommended patterns for building API endpoints:
 - Pydantic schemas for request/response validation
-- Service layer for business logic
+- Async service layer for business logic (non-blocking DB + LLM calls)
 - Dependency injection for database sessions
 - Structured logging for observability
 - Proper HTTP status codes and error handling
-
-NOTE: Route handlers are defined as regular `def` (not `async def`) because
-the service layer uses synchronous SQLAlchemy. FastAPI automatically runs
-sync handlers in a threadpool, avoiding event loop blocking.
+- Domain exception translation (services never raise HTTPException)
 """
 
 from __future__ import annotations
@@ -17,7 +14,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging_config import get_logger
 from app.models.base import get_db
@@ -29,7 +26,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/items", tags=["items"])
 
 
-def get_item_service(db: Session = Depends(get_db)) -> ItemService:
+async def get_item_service(db: AsyncSession = Depends(get_db)) -> ItemService:
     """Dependency that provides an ItemService instance."""
     return ItemService(db)
 
@@ -39,14 +36,14 @@ def get_item_service(db: Session = Depends(get_db)) -> ItemService:
     response_model=ItemListResponse,
     summary="List items",
 )
-def list_items(
+async def list_items(
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(20, ge=1, le=100, description="Max items to return"),
     service: ItemService = Depends(get_item_service),
 ) -> ItemListResponse:
     """List items with pagination."""
-    items = service.list_items(skip=skip, limit=limit)
-    total = service.count_items()
+    items = await service.list_items(skip=skip, limit=limit)
+    total = await service.count_items()
     logger.info("items_listed", count=len(items), skip=skip, limit=limit, total=total)
     return ItemListResponse(
         items=[ItemResponse.model_validate(item) for item in items],
@@ -62,12 +59,12 @@ def list_items(
     status_code=status.HTTP_201_CREATED,
     summary="Create item",
 )
-def create_item(
+async def create_item(
     payload: ItemCreate,
     service: ItemService = Depends(get_item_service),
 ) -> ItemResponse:
     """Create a new item."""
-    item = service.create_item(payload)
+    item = await service.create_item(payload)
     logger.info("item_created", item_id=str(item.id), name=item.name)
     return ItemResponse.model_validate(item)
 
@@ -77,12 +74,12 @@ def create_item(
     response_model=ItemResponse,
     summary="Get item",
 )
-def get_item(
+async def get_item(
     item_id: uuid.UUID,
     service: ItemService = Depends(get_item_service),
 ) -> ItemResponse:
     """Get an item by ID."""
-    item = service.get_item(item_id)
+    item = await service.get_item(item_id)
     if item is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -96,13 +93,13 @@ def get_item(
     response_model=ItemResponse,
     summary="Update item",
 )
-def update_item(
+async def update_item(
     item_id: uuid.UUID,
     payload: ItemUpdate,
     service: ItemService = Depends(get_item_service),
 ) -> ItemResponse:
     """Update an existing item."""
-    item = service.update_item(item_id, payload)
+    item = await service.update_item(item_id, payload)
     if item is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -117,12 +114,12 @@ def update_item(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete item",
 )
-def delete_item(
+async def delete_item(
     item_id: uuid.UUID,
     service: ItemService = Depends(get_item_service),
 ) -> None:
     """Delete an item by ID."""
-    deleted = service.delete_item(item_id)
+    deleted = await service.delete_item(item_id)
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

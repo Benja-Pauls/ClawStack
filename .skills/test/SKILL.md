@@ -45,7 +45,7 @@ Look at the `Miss` column to find lines without test coverage.
 
 ### Test Infrastructure
 
-Tests use in-memory SQLite with `StaticPool` — no running Postgres required. Each test gets a fresh session with transactional rollback via the fixtures in `tests/conftest.py`. The test client uses `dependency_overrides` to inject the test database session.
+Tests use a real PostgreSQL instance via testcontainers — a Docker container is spun up automatically per test session. This ensures tests exercise the same database features (UUID columns, JSONB, `ON CONFLICT`) used in production. Each test gets a fresh async session with transactional rollback via the fixtures in `tests/conftest.py`. The async `httpx.AsyncClient` uses `dependency_overrides` to inject the test database session. **Requirement:** Docker must be running for tests to pass.
 
 ### Interpreting pytest Output
 

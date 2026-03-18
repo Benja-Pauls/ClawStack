@@ -11,10 +11,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.logging_config import get_logger, setup_logging
 from app.middleware.logging import LoggingMiddleware
+from app.rate_limit import limiter
 from app.routes import auth, health, items
 
 logger = get_logger(__name__)
@@ -35,7 +38,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         log_level=settings.LOG_LEVEL,
     )
     yield
-    # Shutdown
+    # Shutdown — dispose the async engine connection pool
+    from app.models.base import get_engine
+
+    engine = get_engine()
+    await engine.dispose()
     logger.info("application_shutting_down")
 
 
@@ -54,13 +61,17 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS middleware
+    # Rate limiting
+    application.state.limiter = limiter
+    application.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    # CORS middleware — methods and headers are tightened per-environment
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=settings.cors.allow_methods,
+        allow_headers=settings.cors.allow_headers,
     )
 
     # Custom request/response logging middleware

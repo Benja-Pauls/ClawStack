@@ -81,96 +81,110 @@ class {Name}ListResponse(BaseModel):
 
 ### 3. Service Layer -- `backend/app/services/{name}.py`
 
-Uses synchronous SQLAlchemy sessions. Each function takes a `Session` and returns model instances or raises `HTTPException`.
+Uses async SQLAlchemy sessions. Services return `None` or domain values — they **never** raise `HTTPException`. The route layer translates service results into HTTP responses.
 
 ```python
 from uuid import UUID
 
-from fastapi import HTTPException, status
 from sqlalchemy import select, func
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.{name} import {Name}
 from app.schemas.{name} import {Name}Create, {Name}Update
 
 
-def create_{name}(db: Session, data: {Name}Create) -> {Name}:
-    item = {Name}(**data.model_dump())
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
+class {Name}Service:
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
 
+    async def create(self, data: {Name}Create) -> {Name}:
+        item = {Name}(**data.model_dump())
+        self.db.add(item)
+        await self.db.commit()
+        await self.db.refresh(item)
+        return item
 
-def get_{name}(db: Session, {name}_id: UUID) -> {Name}:
-    item = db.get({Name}, {name}_id)
-    if not item:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="{Name} not found")
-    return item
+    async def get(self, {name}_id: UUID) -> {Name} | None:
+        stmt = select({Name}).where({Name}.id == {name}_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
 
+    async def list(self, skip: int = 0, limit: int = 100) -> tuple[list[{Name}], int]:
+        total = await self.db.scalar(select(func.count()).select_from({Name}))
+        result = await self.db.execute(select({Name}).offset(skip).limit(limit))
+        return list(result.scalars().all()), total or 0
 
-def list_{name}s(db: Session, skip: int = 0, limit: int = 100) -> tuple[list[{Name}], int]:
-    total = db.scalar(select(func.count()).select_from({Name}))
-    items = list(db.scalars(select({Name}).offset(skip).limit(limit)).all())
-    return items, total or 0
+    async def update(self, {name}_id: UUID, data: {Name}Update) -> {Name} | None:
+        item = await self.get({name}_id)
+        if item is None:
+            return None
+        for key, value in data.model_dump(exclude_unset=True).items():
+            setattr(item, key, value)
+        await self.db.commit()
+        await self.db.refresh(item)
+        return item
 
-
-def update_{name}(db: Session, {name}_id: UUID, data: {Name}Update) -> {Name}:
-    item = get_{name}(db, {name}_id)
-    for key, value in data.model_dump(exclude_unset=True).items():
-        setattr(item, key, value)
-    db.commit()
-    db.refresh(item)
-    return item
-
-
-def delete_{name}(db: Session, {name}_id: UUID) -> None:
-    item = get_{name}(db, {name}_id)
-    db.delete(item)
-    db.commit()
+    async def delete(self, {name}_id: UUID) -> bool:
+        item = await self.get({name}_id)
+        if item is None:
+            return False
+        await self.db.delete(item)
+        await self.db.commit()
+        return True
 ```
 
 ### 4. Router -- `backend/app/routes/{name}.py`
 
-Route handlers use sync `def` (not `async def`). FastAPI runs them in a threadpool automatically.
+Route handlers use `async def` and translate service results (None → 404, bool → 204/404) into HTTP responses. Services never raise HTTPException.
 
 ```python
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import get_db
 from app.schemas.{name} import {Name}Create, {Name}Update, {Name}Response, {Name}ListResponse
-from app.services.{name} import create_{name}, get_{name}, list_{name}s, update_{name}, delete_{name}
+from app.services.{name} import {Name}Service
 
 router = APIRouter(prefix="/{name}s", tags=["{name}s"])
 
 
+async def get_service(db: AsyncSession = Depends(get_db)) -> {Name}Service:
+    return {Name}Service(db)
+
+
 @router.post("", response_model={Name}Response, status_code=201)
-def create(data: {Name}Create, db: Session = Depends(get_db)):
-    return create_{name}(db, data)
+async def create(data: {Name}Create, service: {Name}Service = Depends(get_service)):
+    return await service.create(data)
 
 
 @router.get("", response_model={Name}ListResponse)
-def list_all(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    items, total = list_{name}s(db, skip, limit)
+async def list_all(skip: int = 0, limit: int = 100, service: {Name}Service = Depends(get_service)):
+    items, total = await service.list(skip, limit)
     return {Name}ListResponse({name}s=items, total=total, skip=skip, limit=limit)
 
 
 @router.get("/{{{name}_id}}", response_model={Name}Response)
-def read({name}_id: UUID, db: Session = Depends(get_db)):
-    return get_{name}(db, {name}_id)
+async def read({name}_id: UUID, service: {Name}Service = Depends(get_service)):
+    item = await service.get({name}_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="{Name} not found")
+    return item
 
 
 @router.put("/{{{name}_id}}", response_model={Name}Response)
-def update({name}_id: UUID, data: {Name}Update, db: Session = Depends(get_db)):
-    return update_{name}(db, {name}_id, data)
+async def update({name}_id: UUID, data: {Name}Update, service: {Name}Service = Depends(get_service)):
+    item = await service.update({name}_id, data)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="{Name} not found")
+    return item
 
 
 @router.delete("/{{{name}_id}}", status_code=204)
-def delete({name}_id: UUID, db: Session = Depends(get_db)):
-    delete_{name}(db, {name}_id)
+async def delete({name}_id: UUID, service: {Name}Service = Depends(get_service)):
+    if not await service.delete({name}_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="{Name} not found")
 ```
 
 ### 5. Register the Router
@@ -191,33 +205,44 @@ cd backend && uv run alembic upgrade head
 
 ### 7. Add Tests -- `backend/tests/test_{name}.py`
 
-Tests use the in-memory SQLite test client from `conftest.py`. No running Postgres needed.
+Tests use a real PostgreSQL container via testcontainers (see `conftest.py`) and async httpx `AsyncClient`.
 
 ```python
-from fastapi.testclient import TestClient
+import pytest
+from httpx import AsyncClient
 
-from app.main import create_app
 
-# Use the test fixtures from conftest.py (client, db session with rollback)
-
-def test_create_{name}(client: TestClient):
-    response = client.post("/api/v1/{name}s", json={{"title": "Test {Name}"}})
+@pytest.mark.asyncio
+async def test_create_{name}(client: AsyncClient):
+    response = await client.post("/api/v1/{name}s", json={{"title": "Test {Name}"}})
     assert response.status_code == 201
     data = response.json()
     assert data["title"] == "Test {Name}"
     assert "id" in data
 
-def test_list_{name}s(client: TestClient):
-    response = client.get("/api/v1/{name}s")
+@pytest.mark.asyncio
+async def test_list_{name}s(client: AsyncClient):
+    response = await client.get("/api/v1/{name}s")
     assert response.status_code == 200
     data = response.json()
     assert "{name}s" in data
     assert "total" in data
 
-def test_get_{name}_not_found(client: TestClient):
-    response = client.get("/api/v1/{name}s/00000000-0000-0000-0000-000000000000")
+@pytest.mark.asyncio
+async def test_get_{name}_not_found(client: AsyncClient):
+    response = await client.get("/api/v1/{name}s/00000000-0000-0000-0000-000000000000")
     assert response.status_code == 404
 ```
+
+### 8. Auto-generate Frontend Types
+
+After adding or changing backend schemas, regenerate the frontend TypeScript types:
+
+```bash
+make types
+```
+
+This runs `openapi-typescript` against the running backend's OpenAPI spec to produce `frontend/src/types/api.generated.ts`. See [Type Generation](#type-generation) below.
 
 ---
 
@@ -225,48 +250,34 @@ def test_get_{name}_not_found(client: TestClient):
 
 Given a page name (e.g., `Projects`):
 
-### 1. TypeScript Types -- `frontend/src/types/{name}.ts`
+### 1. TypeScript Types
 
-Must mirror backend Pydantic schemas. Use `string` for UUID `id` fields.
+Types are auto-generated from the backend's OpenAPI spec (see step 8 above). Import them from the generated file:
 
 ```typescript
-export interface {Name} {{
-  id: string;
-  title: string;
-  description: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}}
+import type {{ components }} from "../types/api.generated";
 
-export interface {Name}Create {{
-  title: string;
-  description?: string;
-}}
-
-export interface {Name}Update {{
-  title?: string;
-  description?: string;
-}}
-
-export interface {Name}ListResponse {{
-  {name}s: {Name}[];
-  total: number;
-  skip: number;
-  limit: number;
-}}
+type {Name} = components["schemas"]["{Name}Response"];
+type {Name}Create = components["schemas"]["{Name}Create"];
+type {Name}ListResponse = components["schemas"]["{Name}ListResponse"];
 ```
+
+If you need custom types beyond what the API provides, add them to `frontend/src/types/{name}.ts`.
 
 ### 2. API Client -- `frontend/src/api/{name}.ts`
 
 ```typescript
 import {{ api }} from "./client";
-import type {{ {Name}, {Name}Create, {Name}Update, {Name}ListResponse }} from "../types/{name}";
+import type {{ components }} from "../types/api.generated";
+
+type {Name} = components["schemas"]["{Name}Response"];
+type {Name}Create = components["schemas"]["{Name}Create"];
+type {Name}ListResponse = components["schemas"]["{Name}ListResponse"];
 
 export const get{Name}s = (): Promise<{Name}ListResponse> => api.get("/{name}s");
 export const get{Name} = (id: string): Promise<{Name}> => api.get(`/{name}s/${{id}}`);
 export const create{Name} = (data: {Name}Create): Promise<{Name}> => api.post("/{name}s", data);
-export const update{Name} = (id: string, data: {Name}Update): Promise<{Name}> => api.put(`/{name}s/${{id}}`, data);
+export const update{Name} = (id: string, data: Partial<{Name}>): Promise<{Name}> => api.put(`/{name}s/${{id}}`, data);
 export const delete{Name} = (id: string): Promise<void> => api.delete(`/{name}s/${{id}}`);
 ```
 
@@ -275,7 +286,9 @@ export const delete{Name} = (id: string): Promise<void> => api.delete(`/{name}s/
 ```typescript
 import {{ useQuery, useMutation, useQueryClient }} from "@tanstack/react-query";
 import {{ get{Name}s, create{Name}, update{Name}, delete{Name} }} from "../api/{name}";
-import type {{ {Name}Create, {Name}Update }} from "../types/{name}";
+import type {{ components }} from "../types/api.generated";
+
+type {Name}Create = components["schemas"]["{Name}Create"];
 
 export function use{Name}s() {{
   return useQuery({{ queryKey: ["{name}s"], queryFn: get{Name}s }});
@@ -292,7 +305,7 @@ export function useCreate{Name}() {{
 export function useUpdate{Name}() {{
   const queryClient = useQueryClient();
   return useMutation({{
-    mutationFn: ({{ id, data }}: {{ id: string; data: {Name}Update }}) => update{Name}(id, data),
+    mutationFn: ({{ id, data }}: {{ id: string; data: Partial<{Name}> }}) => update{Name}(id, data),
     onSuccess: () => queryClient.invalidateQueries({{ queryKey: ["{name}s"] }}),
   }});
 }}
@@ -317,3 +330,15 @@ Add a `<Route path="/{name}s" element={{<{Name}s />}} />` inside the router conf
 ### 6. Navigation
 
 Add a `<NavLink to="/{name}s">{Name}s</NavLink>` in the sidebar or header component.
+
+---
+
+## Type Generation
+
+Frontend types are auto-generated from the backend's OpenAPI spec:
+
+```bash
+make types    # Starts backend, generates types, stops backend
+```
+
+This produces `frontend/src/types/api.generated.ts` from the FastAPI OpenAPI schema. Run this whenever you add or change backend schemas. The generated file should be committed to the repo.
