@@ -1,0 +1,68 @@
+# ClawStack — Cursor Rules
+
+You are working on ClawStack, a fullstack template: FastAPI + React + PostgreSQL + Terraform.
+
+## Architecture
+
+- **Backend**: FastAPI, Python 3.12+, async SQLAlchemy 2.0 (asyncpg), Alembic, pydantic-settings, structlog, SlowAPI
+- **Frontend**: React 18, Vite, TypeScript (strict), Tailwind CSS v4, React Router, React Query
+- **Database**: PostgreSQL 16 (Docker locally, RDS in production)
+- **Testing**: pytest + testcontainers (real Postgres), httpx AsyncClient, Vitest
+- **Infrastructure**: Terraform, AWS (App Runner, ECR, RDS, S3)
+
+## Key Conventions
+
+### Python / Backend
+- All route handlers and service methods MUST be `async def`
+- Use `AsyncSession` from `sqlalchemy.ext.asyncio` — never sync Session
+- Services return `None` or domain values — NEVER raise `HTTPException` in services
+- Routes translate service results to HTTP responses (None → 404, etc.)
+- Use `get_logger(__name__)` with structured event-style logging: `logger.info("event_name", key=value)`
+- UUID primary keys on all models — never integer IDs
+- Pydantic schemas in `schemas/` — never expose ORM models directly
+- API routes prefixed with `/api/v1/`
+- Database engine is lazily initialized (not at import time)
+- Line length: 100 characters
+- Formatter/linter: ruff
+
+### TypeScript / Frontend
+- Strict mode — no `any` without justifying comment
+- Named exports for hooks and utilities (components may use default exports)
+- Types auto-generated from OpenAPI spec via `make types` — prefer generated types over hand-written
+- Use React Query for data fetching, React Router for routing
+- Tailwind CSS v4 for styling
+
+### Database
+- Async driver: `postgresql+asyncpg://`
+- All models inherit from `Base` in `app/models/base.py` (UUID pk, created_at, updated_at)
+- Migrations via Alembic (async engine with `run_sync` bridge)
+
+### Testing
+- Backend tests use testcontainers with real PostgreSQL — Docker must be running
+- Use `@pytest.mark.asyncio` and `AsyncClient` (httpx) for endpoint tests
+- Frontend tests use Vitest
+
+## File Structure
+
+```
+backend/app/routes/     — API route handlers (thin, delegate to services)
+backend/app/services/   — Business logic (async, no HTTPException)
+backend/app/schemas/    — Pydantic request/response models
+backend/app/models/     — SQLAlchemy ORM models
+backend/app/config.py   — pydantic-settings configuration
+backend/tests/          — pytest tests with testcontainers
+frontend/src/           — React application
+infra/                  — Terraform modules (AWS)
+.skills/                — Agent context and action skills
+```
+
+## Common Commands
+
+```bash
+make dev        # Start Postgres + backend + frontend
+make test       # Run all tests (requires Docker)
+make lint       # ruff + ESLint
+make types      # Auto-generate frontend types from OpenAPI spec
+make migrate    # Run database migrations
+make seed       # Seed database with sample data
+```

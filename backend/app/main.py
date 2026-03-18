@@ -18,7 +18,7 @@ from app.config import settings
 from app.logging_config import get_logger, setup_logging
 from app.middleware.logging import LoggingMiddleware
 from app.rate_limit import limiter
-from app.routes import auth, health, items
+from app.routes import auth, health, items, stream
 
 logger = get_logger(__name__)
 
@@ -38,11 +38,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         log_level=settings.LOG_LEVEL,
     )
     yield
-    # Shutdown — dispose the async engine connection pool
+    # Shutdown — dispose the async engine connection pool (only if it was created)
     from app.models.base import get_engine
 
-    engine = get_engine()
-    await engine.dispose()
+    if get_engine.cache_info().currsize > 0:
+        engine = get_engine()
+        await engine.dispose()
     logger.info("application_shutting_down")
 
 
@@ -81,6 +82,7 @@ def create_app() -> FastAPI:
     application.include_router(health.router)
     application.include_router(auth.router)
     application.include_router(items.router)
+    application.include_router(stream.router)
 
     return application
 
