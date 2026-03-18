@@ -45,7 +45,11 @@ Look at the `Miss` column to find lines without test coverage.
 
 ### Test Infrastructure
 
-Tests use a real PostgreSQL instance via testcontainers — a Docker container is spun up automatically per test session. This ensures tests exercise the same database features (UUID columns, JSONB, `ON CONFLICT`) used in production. Each test gets a fresh async session with transactional rollback via the fixtures in `tests/conftest.py`. The async `httpx.AsyncClient` uses `dependency_overrides` to inject the test database session. **Requirement:** Docker must be running for tests to pass.
+Tests use a real PostgreSQL instance via testcontainers — a Docker container is spun up automatically per test session. This ensures tests exercise the same database features (UUID columns, JSONB, `ON CONFLICT`) used in production.
+
+Each test gets an `AsyncSession` bound to an outer transaction with `join_transaction_mode="create_savepoint"`. This means when route handlers call `await db.commit()`, SQLAlchemy commits a **savepoint** — not the real transaction. The fixture rolls back the outer transaction after each test, keeping tests fully isolated. The async `httpx.AsyncClient` uses `dependency_overrides` to inject this test session.
+
+**Requirement:** Docker must be running for tests to pass.
 
 ### Interpreting pytest Output
 

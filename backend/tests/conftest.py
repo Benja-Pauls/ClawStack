@@ -50,15 +50,17 @@ async def create_tables(test_engine) -> AsyncGenerator[None, None]:
 async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     """Provide a transactional async database session for each test.
 
-    Uses ``join_transaction_block=True`` so that when route handlers
-    call ``await db.commit()``, SQLAlchemy commits a SAVEPOINT instead
-    of the outer transaction.  This lets the fixture roll back
+    Uses ``join_transaction_mode="create_savepoint"`` so that when route
+    handlers call ``await db.commit()``, SQLAlchemy commits a SAVEPOINT
+    instead of the outer transaction.  This lets the fixture roll back
     everything after each test, keeping tests fully isolated.
+
+    See: https://docs.sqlalchemy.org/en/20/orm/session_transaction.html
     """
     async with test_engine.connect() as connection:
         transaction = await connection.begin()
 
-        session = AsyncSession(bind=connection, join_transaction_block=True)
+        session = AsyncSession(bind=connection, join_transaction_mode="create_savepoint")
 
         yield session
 
