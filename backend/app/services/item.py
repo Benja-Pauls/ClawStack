@@ -3,6 +3,10 @@
 Contains business logic for item CRUD operations, keeping routes thin
 and logic testable. Services receive an async database session via dependency
 injection and raise domain exceptions (not HTTPException).
+
+Services flush but do NOT commit — the route layer owns the transaction
+boundary. This allows multiple service calls to be composed in a single
+transaction (e.g., "create project + add owner as member" atomically).
 """
 
 from __future__ import annotations
@@ -24,7 +28,7 @@ class ItemService:
 
     Services return None or raise domain-specific exceptions — never
     HTTPException. The route layer is responsible for translating
-    service results into HTTP responses.
+    service results into HTTP responses and committing the transaction.
     """
 
     def __init__(self, db: AsyncSession) -> None:
@@ -49,14 +53,14 @@ class ItemService:
         return result.scalar_one_or_none()
 
     async def create_item(self, data: ItemCreate) -> Item:
-        """Create a new item."""
+        """Create a new item. Flushes to populate defaults but does not commit."""
         item = Item(
             name=data.name,
             description=data.description,
             is_active=data.is_active,
         )
         self.db.add(item)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(item)
         return item
 
@@ -70,7 +74,7 @@ class ItemService:
         for field, value in update_data.items():
             setattr(item, field, value)
 
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(item)
         logger.info("item_service_updated", item_id=str(item_id), fields=list(update_data.keys()))
         return item
@@ -82,6 +86,6 @@ class ItemService:
             return False
 
         await self.db.delete(item)
-        await self.db.commit()
+        await self.db.flush()
         logger.info("item_service_deleted", item_id=str(item_id))
         return True

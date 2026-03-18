@@ -105,13 +105,15 @@ Full workflow:
 | Phantom diffs in autogenerate | Compare model against DB schema manually; add to Alembic's `exclude` list if needed |
 | `relation already exists` | The migration was partially applied. Check `alembic_version` table and fix manually |
 | Migration conflicts (multiple heads) | Run `uv run alembic merge heads -m "merge migrations"` |
+| `ModuleNotFoundError` on model import | Ensure model is imported in `backend/app/models/__init__.py` |
+| Docker not running | Testcontainers and local Postgres both require Docker Desktop to be running |
 
 ## Seed Data
 
 Populate the database with sample development data:
 
 ```bash
-python db/seed.py
+make seed
 ```
 
-The seed script is idempotent — running it multiple times will not create duplicates (it checks for existing rows first).
+This runs the async seed CLI command at `backend/app/cli/seed.py`. The seed script is idempotent — running it multiple times will not create duplicates (it checks for existing rows first).

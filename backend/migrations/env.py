@@ -17,11 +17,11 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+# Import all models so Alembic can detect them for autogenerate.
+# Models are registered in app/models/__init__.py — import the package.
+import app.models  # noqa: F401
 from app.config import settings
 from app.models.base import Base
-
-# Import all models so Alembic can detect them for autogenerate
-from app.models.item import Item  # noqa: F401
 
 # Alembic Config object
 config = context.config

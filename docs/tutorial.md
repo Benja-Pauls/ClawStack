@@ -183,7 +183,7 @@ class NoteService:
     async def create_note(self, data: NoteCreate) -> Note:
         note = Note(title=data.title, body=data.body)
         self.db.add(note)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(note)
         logger.info("note_created", note_id=str(note.id), title=note.title)
         return note
@@ -195,7 +195,7 @@ class NoteService:
         update_data = data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(note, field, value)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(note)
         return note
 
@@ -204,11 +204,11 @@ class NoteService:
         if note is None:
             return False
         await self.db.delete(note)
-        await self.db.commit()
+        await self.db.flush()
         return True
 ```
 
-**Pattern:** Services own all database logic and never raise HTTPException. Routes are thin wrappers that validate input, call the service, and translate results (None → 404) into HTTP responses. This keeps services reusable in CLI tools, background workers, and event handlers.
+**Pattern:** Services flush but do **not** commit — the route layer owns the transaction boundary. This allows you to compose multiple service calls in a single atomic transaction. Services return `None` for not-found cases. Routes translate results (None → 404) into HTTP responses. This keeps services reusable in CLI tools, background workers, and event handlers.
 
 ---
 
@@ -259,9 +259,11 @@ async def list_notes(
 @router.post("", response_model=NoteResponse, status_code=status.HTTP_201_CREATED)
 async def create_note(
     payload: NoteCreate,
+    db: AsyncSession = Depends(get_db),
     service: NoteService = Depends(get_note_service),
 ) -> NoteResponse:
     note = await service.create_note(payload)
+    await db.commit()
     return NoteResponse.model_validate(note)
 
 
@@ -280,24 +282,28 @@ async def get_note(
 async def update_note(
     note_id: uuid.UUID,
     payload: NoteUpdate,
+    db: AsyncSession = Depends(get_db),
     service: NoteService = Depends(get_note_service),
 ) -> NoteResponse:
     note = await service.update_note(note_id, payload)
     if note is None:
         raise HTTPException(status_code=404, detail=f"Note {note_id} not found")
+    await db.commit()
     return NoteResponse.model_validate(note)
 
 
 @router.delete("/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_note(
     note_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
     service: NoteService = Depends(get_note_service),
 ) -> None:
     if not await service.delete_note(note_id):
         raise HTTPException(status_code=404, detail=f"Note {note_id} not found")
+    await db.commit()
 ```
 
-**Key pattern:** Route handlers are `async def` with async SQLAlchemy. This is critical for AI agent apps where LLM API calls block for seconds — async handles thousands of concurrent connections without threading limits. Services return `None` for not-found cases; routes translate that to HTTP 404.
+**Key pattern:** Route handlers are `async def` and own the transaction boundary — they call `await db.commit()` after successful mutations. Services only `flush()`. `Depends(get_db)` is cached per-request, so the route's `db` and the service's `self.db` are the same session. This allows you to compose multiple service calls atomically (e.g., create a project and add the owner as a member in one transaction). Services return `None` for not-found cases; routes translate that to HTTP 404.
 
 Register the router in `backend/app/main.py`. Add the import and include:
 
@@ -377,31 +383,25 @@ You should see both tests pass.
 
 ---
 
-## Step 7: Add the Frontend Type
+## Step 7: Generate Frontend Types
 
-Add the Note types to `frontend/src/types/note.ts`:
+Run `make types` to auto-generate TypeScript types from the backend's OpenAPI spec:
+
+```bash
+make types
+```
+
+This exports the FastAPI OpenAPI schema and produces `frontend/src/types/api.generated.ts`. You can then import types directly from the generated file:
 
 ```typescript
-export interface Note {
-  id: string;
-  title: string;
-  body: string | null;
-  created_at: string;
-  updated_at: string;
-}
+import type { components } from "../types/api.generated";
 
-export interface NoteListResponse {
-  notes: Note[];
-  total: number;
-  skip: number;
-  limit: number;
-}
-
-export interface NoteCreate {
-  title: string;
-  body?: string | null;
-}
+type Note = components["schemas"]["NoteResponse"];
+type NoteCreate = components["schemas"]["NoteCreate"];
+type NoteListResponse = components["schemas"]["NoteListResponse"];
 ```
+
+> **Note:** You can also create a convenience file at `frontend/src/types/note.ts` that re-exports the generated types for shorter imports. But the generated file is always the source of truth.
 
 ---
 
@@ -411,7 +411,11 @@ Create `frontend/src/api/notes.ts`:
 
 ```typescript
 import { apiRequest } from "./client";
-import type { Note, NoteListResponse, NoteCreate } from "@/types/note";
+import type { components } from "../types/api.generated";
+
+type Note = components["schemas"]["NoteResponse"];
+type NoteCreate = components["schemas"]["NoteCreate"];
+type NoteListResponse = components["schemas"]["NoteListResponse"];
 
 export async function getNotes(): Promise<NoteListResponse> {
   return apiRequest<NoteListResponse>("/notes");
@@ -440,7 +444,10 @@ Create `frontend/src/hooks/useNotes.ts`:
 ```typescript
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getNotes, createNote, deleteNote } from "@/api/notes";
-import type { NoteCreate, NoteListResponse } from "@/types/note";
+import type { components } from "../types/api.generated";
+
+type NoteCreate = components["schemas"]["NoteCreate"];
+type NoteListResponse = components["schemas"]["NoteListResponse"];
 
 const NOTES_KEY = ["notes"] as const;
 

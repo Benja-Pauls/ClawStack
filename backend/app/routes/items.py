@@ -7,6 +7,7 @@ This module shows the recommended patterns for building API endpoints:
 - Structured logging for observability
 - Proper HTTP status codes and error handling
 - Domain exception translation (services never raise HTTPException)
+- Route-level transaction control (routes commit, services only flush)
 """
 
 from __future__ import annotations
@@ -61,10 +62,12 @@ async def list_items(
 )
 async def create_item(
     payload: ItemCreate,
+    db: AsyncSession = Depends(get_db),
     service: ItemService = Depends(get_item_service),
 ) -> ItemResponse:
     """Create a new item."""
     item = await service.create_item(payload)
+    await db.commit()
     logger.info("item_created", item_id=str(item.id), name=item.name)
     return ItemResponse.model_validate(item)
 
@@ -96,6 +99,7 @@ async def get_item(
 async def update_item(
     item_id: uuid.UUID,
     payload: ItemUpdate,
+    db: AsyncSession = Depends(get_db),
     service: ItemService = Depends(get_item_service),
 ) -> ItemResponse:
     """Update an existing item."""
@@ -105,6 +109,7 @@ async def update_item(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Item {item_id} not found",
         )
+    await db.commit()
     logger.info("item_updated", item_id=str(item_id))
     return ItemResponse.model_validate(item)
 
@@ -116,6 +121,7 @@ async def update_item(
 )
 async def delete_item(
     item_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
     service: ItemService = Depends(get_item_service),
 ) -> None:
     """Delete an item by ID."""
@@ -125,4 +131,5 @@ async def delete_item(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Item {item_id} not found",
         )
+    await db.commit()
     logger.info("item_deleted", item_id=str(item_id))

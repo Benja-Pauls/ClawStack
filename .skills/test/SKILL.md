@@ -69,6 +69,10 @@ When a test fails:
 | `sqlalchemy.exc.ProgrammingError` | Missing table or column | Run `uv run alembic upgrade head` |
 | `fixture 'X' not found` | Missing or misnamed test fixture | Check `conftest.py` files |
 | `assert 'items' in data` fails | Response shape changed | Check if endpoint returns a wrapper object (`{Name}ListResponse`) |
+| `ConnectionRefusedError` or container timeout | Docker is not running | Start Docker Desktop, then re-run tests |
+| `docker.errors.DockerException` | Docker daemon unreachable | Check `docker ps` works, restart Docker if needed |
+| `RuntimeError: no running event loop` | Missing `@pytest.mark.asyncio` | Add decorator to async test functions |
+| `MissingGreenlet` / `await` in sync context | Accidentally called sync code in async path | Ensure all DB operations use `await` with `AsyncSession` |
 
 ## Frontend Tests (vitest)
 

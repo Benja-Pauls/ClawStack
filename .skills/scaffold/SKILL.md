@@ -81,7 +81,7 @@ class {Name}ListResponse(BaseModel):
 
 ### 3. Service Layer -- `backend/app/services/{name}.py`
 
-Uses async SQLAlchemy sessions. Services return `None` or domain values — they **never** raise `HTTPException`. The route layer translates service results into HTTP responses.
+Uses async SQLAlchemy sessions. Services return `None` or domain values — they **never** raise `HTTPException`. Services **flush but do not commit** — the route layer owns the transaction boundary. This allows multiple service calls to be composed in a single transaction.
 
 ```python
 from uuid import UUID
@@ -100,7 +100,7 @@ class {Name}Service:
     async def create(self, data: {Name}Create) -> {Name}:
         item = {Name}(**data.model_dump())
         self.db.add(item)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(item)
         return item
 
@@ -120,7 +120,7 @@ class {Name}Service:
             return None
         for key, value in data.model_dump(exclude_unset=True).items():
             setattr(item, key, value)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(item)
         return item
 
@@ -129,13 +129,13 @@ class {Name}Service:
         if item is None:
             return False
         await self.db.delete(item)
-        await self.db.commit()
+        await self.db.flush()
         return True
 ```
 
 ### 4. Router -- `backend/app/routes/{name}.py`
 
-Route handlers use `async def` and translate service results (None → 404, bool → 204/404) into HTTP responses. Services never raise HTTPException.
+Route handlers use `async def` and translate service results (None → 404, bool → 204/404) into HTTP responses. Services never raise HTTPException. **Routes own the transaction** — they call `await db.commit()` after successful mutations. `Depends(get_db)` is cached per-request, so the route's `db` and the service's `self.db` are the same session.
 
 ```python
 from uuid import UUID
@@ -155,8 +155,14 @@ async def get_service(db: AsyncSession = Depends(get_db)) -> {Name}Service:
 
 
 @router.post("", response_model={Name}Response, status_code=201)
-async def create(data: {Name}Create, service: {Name}Service = Depends(get_service)):
-    return await service.create(data)
+async def create(
+    data: {Name}Create,
+    db: AsyncSession = Depends(get_db),
+    service: {Name}Service = Depends(get_service),
+):
+    item = await service.create(data)
+    await db.commit()
+    return item
 
 
 @router.get("", response_model={Name}ListResponse)
@@ -174,17 +180,28 @@ async def read({name}_id: UUID, service: {Name}Service = Depends(get_service)):
 
 
 @router.put("/{{{name}_id}}", response_model={Name}Response)
-async def update({name}_id: UUID, data: {Name}Update, service: {Name}Service = Depends(get_service)):
+async def update(
+    {name}_id: UUID,
+    data: {Name}Update,
+    db: AsyncSession = Depends(get_db),
+    service: {Name}Service = Depends(get_service),
+):
     item = await service.update({name}_id, data)
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="{Name} not found")
+    await db.commit()
     return item
 
 
 @router.delete("/{{{name}_id}}", status_code=204)
-async def delete({name}_id: UUID, service: {Name}Service = Depends(get_service)):
+async def delete(
+    {name}_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    service: {Name}Service = Depends(get_service),
+):
     if not await service.delete({name}_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="{Name} not found")
+    await db.commit()
 ```
 
 ### 5. Register the Router
@@ -338,7 +355,7 @@ Add a `<NavLink to="/{name}s">{Name}s</NavLink>` in the sidebar or header compon
 Frontend types are auto-generated from the backend's OpenAPI spec:
 
 ```bash
-make types    # Starts backend, generates types, stops backend
+make types    # Exports OpenAPI spec from app, generates TypeScript types
 ```
 
-This produces `frontend/src/types/api.generated.ts` from the FastAPI OpenAPI schema. Run this whenever you add or change backend schemas. The generated file should be committed to the repo.
+This exports the FastAPI OpenAPI schema without starting a server, then produces `frontend/src/types/api.generated.ts`. Run this whenever you add or change backend schemas. The generated file should be committed to the repo.

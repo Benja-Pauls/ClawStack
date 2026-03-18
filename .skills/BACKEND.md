@@ -36,12 +36,13 @@ async def list_items(db: AsyncSession = Depends(get_db)):
 
 ## Service Layer Pattern
 
-Services return `None` or domain values — they never raise `HTTPException`. Routes translate:
+Services return `None` or domain values — they never raise `HTTPException`. Services **flush but do not commit** — the route layer owns the transaction boundary. Routes translate:
 - `None` → 404
 - `False` → 404
 - Domain exceptions → appropriate HTTP status
+- On success, routes call `await db.commit()`
 
-This keeps services reusable in CLI tools, background workers, and event handlers.
+This keeps services composable (multiple service calls in one transaction) and reusable in CLI tools, background workers, and event handlers. `Depends(get_db)` is cached per-request, so the route's `db` and the service's `self.db` are the same session.
 
 ## Authentication
 

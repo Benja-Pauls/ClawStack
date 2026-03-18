@@ -8,7 +8,7 @@ for nested settings. For example:
 
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -117,6 +117,26 @@ class Settings(BaseSettings):
     db: DBConfig = DBConfig()
     auth: AuthConfig = AuthConfig()
     cors: CORSConfig = CORSConfig()
+
+    @model_validator(mode="after")
+    def _validate_production_settings(self) -> Settings:
+        """Reject insecure defaults in non-dev environments.
+
+        Prevents accidentally deploying with the default SECRET_KEY or
+        DATABASE_URL. In dev, defaults are fine for local development.
+        """
+        if self.ENVIRONMENT in ("staging", "prod"):
+            if self.SECRET_KEY == "change-me-in-production":
+                raise ValueError(
+                    "SECRET_KEY must be set to a secure value in "
+                    f"{self.ENVIRONMENT} (currently using the default)"
+                )
+            if "localhost" in self.DATABASE_URL:
+                raise ValueError(
+                    "DATABASE_URL points to localhost — set it to "
+                    f"the real database URL in {self.ENVIRONMENT}"
+                )
+        return self
 
     @property
     def is_dev(self) -> bool:

@@ -61,10 +61,10 @@ Always review generated migrations before applying. Alembic autogenerate may mis
 Populate the database with sample development data:
 
 ```bash
-python db/seed.py
+make seed
 ```
 
-The seed script is idempotent — running it multiple times will not create duplicates. It auto-converts the async DATABASE_URL to sync for one-off execution.
+This runs the async seed CLI command at `backend/app/cli/seed.py`. The seed script is idempotent — running it multiple times will not create duplicates.
 
 ## Database Session
 

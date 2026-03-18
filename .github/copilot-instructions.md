@@ -15,7 +15,9 @@ You are working on ClawStack, a fullstack template: FastAPI + React + PostgreSQL
 - All route handlers and service methods MUST be `async def`
 - Use `AsyncSession` from `sqlalchemy.ext.asyncio` — never sync Session
 - Services return `None` or domain values — NEVER raise `HTTPException` in services
-- Routes translate service results to HTTP responses (None → 404, etc.)
+- Services flush() but do NOT commit() — routes own the transaction boundary
+- Routes translate service results to HTTP responses (None → 404, etc.) and call `await db.commit()` after mutations
+- New models MUST be imported in `backend/app/models/__init__.py` for Alembic to detect them
 - Use `get_logger(__name__)` with structured event-style logging: `logger.info("event_name", key=value)`
 - UUID primary keys on all models — never integer IDs
 - Pydantic schemas in `schemas/` — never expose ORM models directly
@@ -42,12 +44,13 @@ You are working on ClawStack, a fullstack template: FastAPI + React + PostgreSQL
 
 ## Adding a New Endpoint
 
-1. Create Pydantic schemas in `backend/app/schemas/`
-2. Create async service in `backend/app/services/` (return None for not-found, no HTTPException)
-3. Create async route in `backend/app/routes/` (translate service results to HTTP)
-4. Register router in `backend/app/main.py`
-5. Add tests in `backend/tests/`
-6. Run `make types` to update frontend TypeScript types
+1. Create SQLAlchemy model in `backend/app/models/` and import it in `models/__init__.py`
+2. Create Pydantic schemas in `backend/app/schemas/`
+3. Create async service in `backend/app/services/` (flush only, no commit, return None for not-found, no HTTPException)
+4. Create async route in `backend/app/routes/` (translate service results to HTTP, commit after mutations)
+5. Register router in `backend/app/main.py`
+6. Add tests in `backend/tests/`
+7. Run `make types` to update frontend TypeScript types
 
 ## Common Commands
 
