@@ -31,7 +31,8 @@
       "Bash(grep -r \"codegen\\\\|openapi-typescript\" /Users/ben_paulson/Documents/ClawStack --include=*.json --include=*.toml)",
       "Bash(uv lock:*)",
       "Bash(npx vitest:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

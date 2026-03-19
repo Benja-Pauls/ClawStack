@@ -3,30 +3,34 @@
 <p align="center"><img src="assets/serpentstack-logo.png" alt="SerpentStack" width="400" /></p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
+  <a href="https://github.com/Benja-Pauls/SerpentStack/releases/latest"><img src="https://img.shields.io/github/v/release/Benja-Pauls/SerpentStack?label=release&color=blue" alt="Release" /></a>
   <a href="https://github.com/Benja-Pauls/SerpentStack/actions/workflows/ci.yml"><img src="https://github.com/Benja-Pauls/SerpentStack/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <img src="https://img.shields.io/badge/python-3.12+-3776AB?logo=python&logoColor=white" alt="Python 3.12+" />
   <img src="https://img.shields.io/badge/node-22+-339933?logo=node.js&logoColor=white" alt="Node 22+" />
-  <img src="https://img.shields.io/badge/any_AI_agent-compatible-7c3aed" alt="Any AI agent compatible" />
 </p>
 
 <p align="center">
   <a href="#quick-start">Quick Start</a> &nbsp;·&nbsp;
-  <a href="#key-patterns">Key Patterns</a> &nbsp;·&nbsp;
-  <a href="#agent-integration">Agent Integration</a> &nbsp;·&nbsp;
-  <a href="#deploy-to-aws">Deploy</a> &nbsp;·&nbsp;
-  <a href="#design-decisions">Design Decisions</a> &nbsp;·&nbsp;
-  <a href="docs/tutorial.md">Tutorial</a> &nbsp;·&nbsp;
-  <a href="docs/faq.md">FAQ</a>
+  <a href="#skills">Skills</a> &nbsp;·&nbsp;
+  <a href="#patterns">Patterns</a> &nbsp;·&nbsp;
+  <a href="#commands">Commands</a> &nbsp;·&nbsp;
+  <a href="#deploy">Deploy</a> &nbsp;·&nbsp;
+  <a href="#design-decisions">Design Decisions</a>
 </p>
 
 ---
 
-A fullstack template (FastAPI + React + Postgres + Terraform) designed to work well with AI coding agents. Clone it, run `make dev`, and start building. Your agent reads the `.skills/` directory and immediately understands the project structure, conventions, and how to add features.
+AI coding agents start every session cold. They don't know your project layout, your conventions, or why you chose Alembic over raw SQL. They hallucinate file paths, generate patterns that don't match your codebase, and scaffold code you have to rewrite.
 
-The core idea: every AI coding session starts cold. The agent doesn't know your project layout, your conventions, or why you chose Alembic over raw SQL. It hallucinates paths and scaffolds patterns that don't match. SerpentStack solves this with `.skills/` — plain markdown files that any agent can read (Claude Code, Cursor, Copilot, whatever). No vendor lock-in, no special tooling.
+SerpentStack is a fullstack template that fixes this with `.skills/` — plain markdown files that give any agent (Claude Code, Cursor, Copilot, Windsurf, whatever) the context it needs to write code that actually fits your project. No vendor lock-in, no plugins, no special tooling. If your agent can read a file, it can read a skill.
 
-**Stack:** FastAPI, Python 3.12, async SQLAlchemy 2.0, PostgreSQL, React 18, TypeScript, Vite, Tailwind CSS v4, Terraform (AWS). Tests run against real Postgres via testcontainers.
+The template itself is a production-ready FastAPI + React + Postgres stack with JWT auth, ownership enforcement, async SQLAlchemy, testcontainers, and Terraform deploy. But the point isn't the stack — it's that every decision is documented in `.skills/` so agents reproduce the patterns correctly when you ask them to add features.
+
+```
+git clone https://github.com/Benja-Pauls/SerpentStack.git && cd SerpentStack
+make init && make setup && make dev
+```
 
 ## Quick Start
 
@@ -35,14 +39,32 @@ Prerequisites: Python 3.12+, Node 22+, Docker, [uv](https://docs.astral.sh/uv/).
 ```bash
 git clone https://github.com/Benja-Pauls/SerpentStack.git
 cd SerpentStack
-make init      # interactive setup — project name, cloud provider, DB config
+make init      # interactive setup — project name, DB config
 make setup     # install Python (uv) and Node (npm) dependencies
 make dev       # start Postgres + Redis + backend + frontend with hot reload
 ```
 
-Backend runs at `http://localhost:8000`, frontend at `http://localhost:5173`. The app comes with a working Items CRUD, JWT auth (register/login), and ownership enforcement out of the box.
+Backend at `localhost:8000`, frontend at `localhost:5173`. Working Items CRUD, JWT auth (register/login), and ownership enforcement out of the box. `make verify` runs lint + typecheck + tests for both ends.
 
-To verify everything works: `make verify` (runs lint + typecheck + tests for both backend and frontend).
+## Skills
+
+The `.skills/` directory is what makes this different from every other template. Each skill is a markdown file that teaches an agent how to do something in your project:
+
+| Skill | What it teaches |
+|---|---|
+| `scaffold/SKILL.md` | How to add a new resource end-to-end (model → schema → service → route → tests → frontend) |
+| `auth/SKILL.md` | How auth works, how to protect routes, how to swap JWT for Clerk/Auth0/SSO |
+| `test/SKILL.md` | How to run tests, what the fixtures do, how to interpret failures |
+| `db-migrate/SKILL.md` | How to create and run Alembic migrations |
+| `dev-server/SKILL.md` | Common dev server errors and how to fix them |
+| `deploy/SKILL.md` | Docker build → ECR push → Terraform apply |
+| `git-workflow/SKILL.md` | Branch naming, commit conventions, PR process |
+
+Agent-specific config files (`.cursorrules`, `.github/copilot-instructions.md`) are also included — these are auto-loaded by their respective agents and contain the architecture overview and key conventions.
+
+Skills are plain markdown. Edit them, delete the ones you don't need, add new ones. A skill is just a `SKILL.md` in a `.skills/` subdirectory.
+
+**Why this works:** When you tell an agent "add a Projects resource," it reads `scaffold/SKILL.md` and generates a model with the right imports, a service that flushes but doesn't commit, a route that checks ownership, and tests without redundant decorators — because the skill told it exactly how. Without skills, it guesses. With skills, it follows your patterns.
 
 ## What You Get
 
@@ -61,48 +83,27 @@ backend/
 frontend/
   src/
     routes/        # Page components (Items, Login, Register)
-    api/client.ts  # fetch-based API client with auth token injection
+    api/client.ts  # fetch wrapper with auth token injection
     contexts/      # React AuthContext + useAuth hook
-    types/         # Auto-generated from OpenAPI via `make types`
+    types/         # Auto-generated from OpenAPI via make types
 
 infra/             # Terraform: App Runner, RDS, ECR, VPC
-  modules/         # networking, ecr, rds, app-runner
-  environments/    # dev, staging, prod
-
-.skills/           # Agent context files (the important part)
+.skills/           # Agent context (the important part)
 ```
 
-## Key Patterns
+## Patterns
 
-These are the conventions your agent will follow (they're documented in `.skills/` and `.cursorrules`):
+These are the conventions enforced in `.skills/` and `.cursorrules`. Your agent learns them on first read.
 
-**Services flush, routes commit.** Services call `await db.flush()` but never `await db.commit()`. The route handler owns the transaction boundary. This lets you compose multiple service calls in a single transaction.
+**Services flush, routes commit.** Services call `await db.flush()` but never `db.commit()`. The route handler owns the transaction boundary. This lets you compose multiple service calls atomically.
 
-**Services never raise HTTPException.** They return `None` for not-found, `False` for permission denied, or domain objects for success. Routes translate these to HTTP status codes (404, 403, 200).
+**Services never raise HTTPException.** They return `None` for not-found, `False` for not-yours, or a domain object for success. Routes translate: `None` → 404, `False` → 403, object → 200.
 
-**Ownership enforcement.** Write operations (update, delete) require authentication via `Depends(get_current_user)` and check ownership. The pattern: service returns `True`/`None`/`False` for success/not-found/not-yours, route translates to 204/404/403.
+**Ownership enforcement.** Update and delete require `Depends(get_current_user)` and verify ownership. The three-way return (`True`/`None`/`False` → 204/404/403) is consistent across every resource.
 
-**Auth is swappable.** Everything flows through `get_current_user()` which returns a `UserInfo(user_id, email, name, raw_claims)`. To swap JWT for Clerk, Auth0, or SSO, replace that one function. All protected routes keep working.
+**Auth is one function.** Everything flows through `get_current_user()` → `UserInfo(user_id, email, name, raw_claims)`. Swap JWT for Clerk, Auth0, or SSO by replacing that one dependency. All protected routes keep working.
 
-**Types flow from backend to frontend.** `make types` exports the FastAPI OpenAPI spec and generates TypeScript types via `openapi-typescript`. No manual schema duplication.
-
-## Agent Integration
-
-The `.skills/` directory contains markdown files that tell your agent how to work in this project. Any agent that can read files picks these up:
-
-| File | What it tells the agent |
-|---|---|
-| `.skills/scaffold/SKILL.md` | How to add a new resource (model, schema, service, route, tests, frontend) |
-| `.skills/auth/SKILL.md` | How auth works, how to protect routes, how to swap providers |
-| `.skills/dev-server/SKILL.md` | How to detect and fix common dev server errors |
-| `.skills/test/SKILL.md` | How to run tests, interpret failures |
-| `.skills/db-migrate/SKILL.md` | How to create and run Alembic migrations |
-| `.skills/deploy/SKILL.md` | How to build, push, and deploy to AWS |
-| `.skills/git-workflow/SKILL.md` | Branch naming, commit conventions, PR process |
-| `.cursorrules` | Architecture overview + conventions (auto-read by Cursor) |
-| `.github/copilot-instructions.md` | Same conventions (auto-read by GitHub Copilot) |
-
-Skills are plain markdown — edit them, delete ones you don't need, or add new ones by creating a `SKILL.md` in a new `.skills/` subdirectory.
+**Types flow from backend to frontend.** `make types` exports the OpenAPI spec and generates TypeScript types. No manual schema duplication.
 
 ## Commands
 
@@ -114,24 +115,22 @@ make lint            # ruff (backend) + ESLint (frontend)
 make types           # regenerate frontend TypeScript from OpenAPI spec
 make migrate         # run Alembic migrations
 make migrate-new name="add projects table"  # create a new migration
-make seed            # seed DB with sample user + items
+make seed            # seed DB with sample data
 make worker          # start ARQ background task worker
 make ui component=button  # add a shadcn/ui component
-make deploy          # build + push + terraform apply (defaults to dev)
-make deploy env=prod # deploy to prod (shows plan first)
 ```
 
-## Deploy to AWS
+## Deploy
 
-Terraform modules for App Runner, RDS, ECR, and VPC networking are included in `infra/`. The deploy flow:
+Terraform modules for App Runner, RDS, ECR, and VPC are in `infra/`.
 
 ```bash
-make deploy-init     # one-time: create S3 state bucket + DynamoDB lock table
-make deploy          # build Docker images, push to ECR, terraform apply
-make deploy env=prod # prod shows a plan for review before applying
+make deploy-init     # one-time: S3 state bucket + DynamoDB lock table
+make deploy          # build → push → terraform apply (defaults to dev)
+make deploy env=prod # prod shows plan before applying
 ```
 
-The app is standard Docker containers. The AWS modules are a reference implementation — it runs anywhere containers run.
+Standard Docker containers. The AWS modules are a reference — it runs anywhere containers run.
 
 ## Design Decisions
 
@@ -139,14 +138,14 @@ The app is standard Docker containers. The AWS modules are a reference implement
 |---|---|
 | Async SQLAlchemy + asyncpg | AI apps multiplex LLM calls (2-30s each). Async handles thousands of concurrent connections vs ~40 with sync. |
 | Testcontainers (real Postgres) | UUID columns, `ON CONFLICT`, JSONB don't exist in SQLite. Real DB in tests catches real bugs. |
-| shadcn/ui (configured, zero components installed) | Copies source into your project — no runtime dependency. `make ui component=X` adds on demand. Delete `components.json` to remove entirely. |
-| Domain exceptions in services | Services return `None`/`False`, routes translate to HTTP. Services stay reusable in CLI tools, workers, event handlers. |
+| shadcn/ui (zero components installed) | Copies source into your project. `make ui component=X` adds on demand. Delete `components.json` to remove entirely. |
+| Domain returns, not exceptions | Services return `None`/`False`, routes translate to HTTP. Services stay reusable in workers, CLI tools, event handlers. |
 | `openapi-typescript` | `make types` auto-generates frontend types. No manual schema mirroring. |
 | Rate limiting (SlowAPI) | In-memory for dev, Redis for prod. Set `RATE_LIMIT_STORAGE_URI` to switch. |
 
 ## Contributing
 
-Contributions welcome, especially: new skills in `.skills/`, Terraform modules for GCP/Azure, and config files for additional AI agents. For bugs and feature requests, [open an issue](https://github.com/Benja-Pauls/SerpentStack/issues).
+Contributions welcome — especially new `.skills/`, Terraform modules for GCP/Azure, and agent config files for additional tools. [Open an issue](https://github.com/Benja-Pauls/SerpentStack/issues) for bugs and feature requests.
 
 ## License
 
