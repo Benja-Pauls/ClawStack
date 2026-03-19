@@ -21,11 +21,13 @@
 
 ---
 
-AI coding agents start every session cold. They don't know your project layout, your conventions, or why you chose Alembic over raw SQL. They hallucinate file paths, generate patterns that don't match your codebase, and scaffold code you have to rewrite.
+Two kinds of AI agents work on your codebase. **IDE agents** (Cursor, Copilot, Claude Code) write code when you ask. **Persistent agents** run in the background — watching logs, catching errors, keeping documentation current. The problem is neither type knows your conventions. The IDE agent hallucinates file paths and scaffolds patterns that don't match. The persistent agent can't maintain what it doesn't understand.
 
-SerpentStack is a fullstack template that fixes this with `.skills/` — plain markdown files that give any agent (Claude Code, Cursor, Copilot, Windsurf, whatever) the context it needs to write code that actually fits your project. No vendor lock-in, no plugins, no special tooling. If your agent can read a file, it can read a skill.
+SerpentStack solves this with `.skills/` — project context that agents both read *and* maintain. Not static docs a human writes once and forgets. IDE agents read skills to write code that fits your patterns. Persistent agents update skills as your project evolves — new conventions get captured, stale patterns get corrected, and every future IDE session benefits automatically. The skills directory is the shared interface between them.
 
-The template itself is a production-ready FastAPI + React + Postgres stack with JWT auth, ownership enforcement, async SQLAlchemy, testcontainers, and Terraform deploy. But the point isn't the stack — it's that every decision is documented in `.skills/` so agents reproduce the patterns correctly when you ask them to add features.
+No vendor lock-in, no plugins, no special tooling. If your agent can read a file, it can read a skill. Works with Claude Code, Cursor, Copilot, Windsurf, or anything else that reads files.
+
+The template itself is a production-ready FastAPI + React + Postgres stack with JWT auth, ownership enforcement, async SQLAlchemy, testcontainers, and Terraform deploy — every decision documented in `.skills/` so both types of agents can reproduce the patterns correctly.
 
 ```
 git clone https://github.com/Benja-Pauls/SerpentStack.git && cd SerpentStack
@@ -48,7 +50,7 @@ Backend at `localhost:8000`, frontend at `localhost:5173`. Working Items CRUD, J
 
 ## Skills
 
-The `.skills/` directory is what makes this different from every other template. Each skill is a markdown file that teaches an agent how to do something in your project:
+Most projects have a `.cursorrules` or a `CONTRIBUTING.md` — static context that goes stale the week after someone writes it. Skills are different: they're structured so agents can update them, not just read them. Each skill teaches an agent how to do one thing in your project:
 
 | Skill | What it teaches |
 |---|---|
@@ -64,7 +66,9 @@ Agent-specific config files (`.cursorrules`, `.github/copilot-instructions.md`) 
 
 Skills are plain markdown. Edit them, delete the ones you don't need, add new ones. A skill is just a `SKILL.md` in a `.skills/` subdirectory.
 
-**Why this works:** When you tell an agent "add a Projects resource," it reads `scaffold/SKILL.md` and generates a model with the right imports, a service that flushes but doesn't commit, a route that checks ownership, and tests without redundant decorators — because the skill told it exactly how. Without skills, it guesses. With skills, it follows your patterns.
+**IDE agents use skills to write correct code.** When you tell an agent "add a Projects resource," it reads `scaffold/SKILL.md` and generates a model with the right imports, a service that flushes but doesn't commit, a route that checks ownership, and tests without redundant decorators — because the skill told it exactly how. Without skills, it guesses. With skills, it follows your patterns.
+
+**Persistent agents use skills to maintain quality.** A background agent watches your dev server logs via `dev-server/SKILL.md`, catches errors before you see them, and knows how to fix common failures. It can update skills as your project evolves — when you add a new convention, the skill gets updated, and every future IDE session picks it up automatically.
 
 ## What You Get
 
