@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useItems, useCreateItem, useDeleteItem } from "@/hooks/useItems";
+import { useAuth } from "@/hooks/useAuth";
 import Button from "@/components/Button";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
@@ -8,6 +10,7 @@ export default function Items() {
   const items = data?.items;
   const createItem = useCreateItem();
   const deleteItem = useDeleteItem();
+  const { isAuthenticated } = useAuth();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -91,6 +94,15 @@ export default function Items() {
         )}
       </form>
 
+      {!isAuthenticated && (
+        <p className="text-center text-sm text-muted-foreground">
+          <Link to="/login" className="font-medium text-primary hover:underline">
+            Sign in
+          </Link>{" "}
+          to delete items and associate them with your account.
+        </p>
+      )}
+
       {/* Items list */}
       {isLoading && <LoadingSpinner className="py-12" />}
 
@@ -151,14 +163,16 @@ export default function Items() {
                     {new Date(item.created_at).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Button
-                      variant="danger"
-                      onClick={() => deleteItem.mutate(item.id)}
-                      disabled={deleteItem.isPending}
-                      className="text-xs"
-                    >
-                      Delete
-                    </Button>
+                    {isAuthenticated && (
+                      <Button
+                        variant="danger"
+                        onClick={() => deleteItem.mutate(item.id)}
+                        disabled={deleteItem.isPending}
+                        className="text-xs"
+                      >
+                        Delete
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}

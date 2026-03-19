@@ -1,7 +1,7 @@
 [project]
-name = "clawstack-backend"
+name = "serpentstack-backend"
 version = "0.1.0"
-description = "ClawStack backend API - production-ready FastAPI template for AI-agent-assisted development"
+description = "SerpentStack backend API - production-ready FastAPI template for AI-agent-assisted development"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
@@ -13,6 +13,8 @@ dependencies = [
     "slowapi>=0.1.9",
     "structlog>=24.4.0",
     "PyJWT[crypto]>=2.9.0",
+    "passlib[bcrypt]>=1.7.4",
+    "pydantic[email]>=2.0.0",
     "httpx>=0.28.0",
     "sentry-sdk[fastapi]>=2.0.0",
     "arq>=0.26.0",

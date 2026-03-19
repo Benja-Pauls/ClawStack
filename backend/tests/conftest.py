@@ -1,4 +1,4 @@
-"""Pytest fixtures for the ClawStack backend test suite.
+"""Pytest fixtures for the SerpentStack backend test suite.
 
 Uses testcontainers to spin up a real PostgreSQL instance so tests
 exercise the same database features (UUID columns, ON CONFLICT,

@@ -1,6 +1,6 @@
-# ClawStack — GitHub Copilot Instructions
+# SerpentStack — GitHub Copilot Instructions
 
-You are working on ClawStack, a fullstack template: FastAPI + React + PostgreSQL + Terraform.
+You are working on SerpentStack, a fullstack template: FastAPI + React + PostgreSQL + Terraform.
 
 ## Architecture
 
@@ -23,6 +23,7 @@ You are working on ClawStack, a fullstack template: FastAPI + React + PostgreSQL
 - UUID primary keys on all models — never integer IDs
 - Pydantic schemas in `schemas/` — never expose ORM models directly
 - API routes prefixed with `/api/v1/`
+- Protect routes with `Depends(get_current_user)` from `routes/auth.py` — returns `UserInfo`
 - Database engine is lazily initialized (not at import time)
 - Line length: 100 characters
 - Formatter/linter: ruff
@@ -40,7 +41,8 @@ You are working on ClawStack, a fullstack template: FastAPI + React + PostgreSQL
 
 ### Testing
 - Backend tests use testcontainers with real PostgreSQL — Docker must be running
-- Use `@pytest.mark.asyncio` and `AsyncClient` for endpoint tests
+- `asyncio_mode = "auto"` is set — do NOT add `@pytest.mark.asyncio` to tests
+- Use `AsyncClient` (httpx) for endpoint tests
 - Frontend tests use Vitest
 
 ## Adding a New Endpoint
@@ -57,6 +59,7 @@ You are working on ClawStack, a fullstack template: FastAPI + React + PostgreSQL
 
 ```bash
 make dev        # Start Postgres + Redis + backend + frontend
+make verify     # Lint + typecheck + test (backend & frontend) — run before pushing
 make test       # Run all tests (requires Docker)
 make lint       # ruff + ESLint
 make types      # Auto-generate frontend types from OpenAPI spec
@@ -65,3 +68,5 @@ make seed       # Seed database with sample data
 make worker     # Start ARQ background task worker
 make ui component=X  # Add a shadcn/ui component
 ```
+
+**Always run `make verify` before pushing.** It runs the same checks as CI.

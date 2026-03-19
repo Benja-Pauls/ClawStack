@@ -1,104 +1,100 @@
 ---
-name: clawstack-find-skills
-description: "Discover, evaluate, and install community skills from ClawHub and the OpenClaw ecosystem. Use when: the user needs a capability not covered by built-in skills, wants to find a skill for a specific tool or service, or asks about available skills."
-metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "🔍",
-      },
-  }
+name: find-skills
+description: "Discover, evaluate, and create skills for your project. Use when: the user needs a capability not covered by built-in skills, wants to find patterns for a specific tool or service, or asks about extending the skills directory."
 ---
 
-# Find Skills
+# Find & Create Skills
 
-Discover and install community skills from the OpenClaw ecosystem when ClawStack's built-in skills don't cover what the user needs.
+Discover community skills and create new ones when SerpentStack's built-in skills don't cover what the user needs.
 
 ## When to Use This Skill
 
-Use this when the user asks for something outside the scope of the 6 built-in skills:
+Use this when the user asks for something outside the scope of the built-in skills:
 
 | Built-in Skill | Covers |
 |---|---|
 | `dev-server` | Starting, monitoring, and auto-fixing the dev environment |
 | `deploy` | Docker build, ECR push, Terraform apply to AWS |
 | `scaffold` | Generating new API endpoints and frontend pages |
+| `auth` | Understanding auth, protecting routes, swapping providers |
 | `db-migrate` | Alembic migrations, schema changes, seed data |
 | `test` | Running and interpreting pytest and vitest |
 | `git-workflow` | Branches, commits, PRs, rebasing |
 
-If the user needs something else — monitoring, Stripe, email, Slack, S3 file uploads, PDF generation, browser automation, etc. — search for a community skill first before building from scratch.
+If the user needs something else — monitoring, Stripe, email, Slack, S3 file uploads, PDF generation, browser automation, etc. — search for a community skill or official docs first before building from scratch.
 
-## Step 1: Search ClawHub
+## Step 1: Search for Existing Skills
 
-ClawHub is the official skill registry with 13,000+ community skills.
+**Via web search (recommended):**
 
-**Via API (preferred — works without a browser):**
+Search for: `"SKILL.md" <what the user needs>` or `site:github.com SKILL.md <topic>`
 
-```bash
-# Search by keyword
-curl -s "https://clawhub.ai/api/v1/skills?q=stripe+payments" | python3 -m json.tool
+**Via package registries:**
 
-# Get a specific skill's SKILL.md
-curl -s "https://clawhub.ai/api/v1/skills/<owner>-<slug>/file?path=SKILL.md"
-```
-
-**Via web search (if you have web access):**
-
-Search for: `site:clawhub.ai <what the user needs>` or `site:github.com openclaw skill SKILL.md <topic>`
-
-**Curated lists (good starting points):**
-
-- [Awesome OpenClaw Skills](https://github.com/VoltAgent/awesome-openclaw-skills) — 5,400+ skills filtered and categorized
-- [OpenClaw Master Skills](https://github.com/LeoYeAI/openclaw-master-skills) — 339 curated best-of-breed skills
-- [OpenClaw bundled skills](https://github.com/openclaw/openclaw/tree/main/skills) — 50+ skills shipped with OpenClaw
-
-## Step 2: Evaluate the Skill
-
-Before using any community skill, check:
-
-1. **Read the SKILL.md** — does it actually do what the user needs?
-2. **Check requirements** — look at the `requires.bins` in the frontmatter. Are those tools installed?
-3. **Check for red flags** — does it ask you to run `curl | bash` from unknown URLs? Does it request API keys be sent to external services? (Treat third-party skills as untrusted code.)
-4. **Check recency** — is the skill recently updated, or abandoned? Check the GitHub repo or ClawHub page.
-
-## Step 3: Use the Skill
-
-**Option A — Read and follow inline (recommended for one-off use):**
-
-Fetch the SKILL.md content and follow its instructions directly. No installation needed.
+Many integrations have official SDKs with excellent docs:
 
 ```bash
-# Fetch and read a skill
-curl -s "https://clawhub.ai/api/v1/skills/<owner>-<slug>/file?path=SKILL.md"
+# Python packages
+uv search <topic>
+
+# Check PyPI directly
+# https://pypi.org/search/?q=<topic>
+
+# NPM packages
+npm search <topic>
 ```
 
-Then follow the instructions in the skill as if they were given to you by the user.
+**Via official documentation:**
 
-**Option B — Install locally (for repeated use):**
+For third-party services, always prefer the provider's official docs over community implementations — they're always up to date:
 
-Download the skill into the project's skills directory:
+- **Stripe**: https://docs.stripe.com/api
+- **AWS S3**: https://docs.aws.amazon.com/s3/
+- **SendGrid**: https://docs.sendgrid.com/api-reference
+- **Twilio**: https://www.twilio.com/docs/usage/api
 
-```bash
-# Create skill directory
-mkdir -p .skills/<skill-name>
+## Step 2: Evaluate Before Adopting
 
-# Download the SKILL.md
-curl -s "https://clawhub.ai/api/v1/skills/<owner>-<slug>/file?path=SKILL.md" \
-  > .skills/<skill-name>/SKILL.md
+Before using any community skill or third-party integration, check:
+
+1. **Read the instructions** — does it actually do what the user needs?
+2. **Check requirements** — what dependencies does it need? Are those installed?
+3. **Check for red flags** — does it ask you to run `curl | bash` from unknown URLs? Does it request API keys be sent to external services?
+4. **Check recency** — is the source recently updated, or abandoned?
+
+## Step 3: Create a New Skill
+
+If no existing skill covers what's needed, create one. A skill is a markdown file at `.skills/<skill-name>/SKILL.md`.
+
+**Skill format:**
+
+```markdown
+---
+name: <skill-name>
+description: "<when to use this skill>"
+---
+
+# <Skill Title>
+
+## When to Use
+<Describe the trigger conditions>
+
+## Steps
+<Specific, actionable instructions with real file paths and commands>
+
+## Verification
+<How to verify the task was done correctly>
 ```
 
-If the skill has additional files (check the ClawHub page), download those too.
+**Good skills are:**
+- **Actionable** — specific commands, real file paths, decision trees (not vague documentation)
+- **Self-contained** — all the info needed to complete the task, without requiring external searches
+- **Linked to live docs** — for third-party services, link to their official docs rather than hardcoding API signatures that go stale
+- **Adapted to project conventions** — use `uv add` not `pip install`, put services in `backend/app/services/`, use structured logging, etc.
 
-**Option C — Install via OpenClaw CLI (if OpenClaw is running):**
+## Step 4: Adapt to SerpentStack Patterns
 
-```bash
-openclaw skills install <owner>/<slug>
-```
-
-## Step 4: Adapt to ClawStack Patterns
-
-Community skills are generic. When following a community skill in this project, adapt it to ClawStack conventions:
+When following any external guide or community skill, adapt it to SerpentStack conventions:
 
 - **Python packages**: use `uv add` not `pip install`
 - **Config/secrets**: add to `backend/app/config.py` as a Pydantic settings class, set via env vars in `.env`
@@ -107,24 +103,24 @@ Community skills are generic. When following a community skill in this project, 
 - **Frontend API calls**: add typed functions in `frontend/src/api/`, hooks in `frontend/src/hooks/`
 - **Logging**: use `get_logger(__name__)` with structured JSON events
 
-## Example: Finding a Monitoring Skill
+## Example: Adding Stripe Integration
 
-User asks: "I want to add uptime monitoring for the deployed app."
+User asks: "I want to add Stripe payments."
 
-1. Search: `curl -s "https://clawhub.ai/api/v1/skills?q=uptime+monitoring+health+check"`
-2. Find a relevant skill (e.g., `healthcheck`, `uptime-kuma`, or `agentic-devops`)
-3. Read its SKILL.md
-4. Follow instructions, adapting any code to ClawStack patterns (Pydantic config, service layer, structured logging)
-5. If it's useful long-term, install it locally in `.skills/`
+1. Search: check Stripe's official Python SDK docs at https://docs.stripe.com/api
+2. Install: `cd backend && uv add stripe`
+3. Config: add `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` to `backend/app/config.py`
+4. Service: create `backend/app/services/stripe.py` with payment logic
+5. Route: create `backend/app/routes/payments.py` with checkout and webhook endpoints
+6. Create skill: write `.skills/payments/SKILL.md` documenting the integration for future agent sessions
+7. Verify: run `make test` to ensure nothing broke
 
-## Skills the ClawStack Community Has Found Useful
+## Skills Created by This Project
 
-_This section is a living list. Add skills here as you discover good ones._
+_Add skills here as you create them._
 
-| Skill | Source | What it does |
-|---|---|---|
-| `agentic-devops` | [ClawHub](https://clawskills.sh/skills/tkuehnl-agentic-devops) | Docker management, process monitoring, log analysis |
-| `github` | [OpenClaw bundled](https://github.com/openclaw/openclaw/tree/main/skills/github) | GitHub operations via `gh` CLI — issues, PRs, CI runs |
-| `coding-agent` | [OpenClaw bundled](https://github.com/openclaw/openclaw/tree/main/skills/coding-agent) | Delegate coding tasks to Codex, Claude Code, or other agents |
+| Skill | What it does |
+|---|---|
+| _(none yet)_ | Run `make dev` and start building! |
 
-_Found a great skill? Add it to this table and open a PR._
+_Created a useful skill? Consider sharing it by opening a PR._

@@ -1,4 +1,4 @@
-"""Example CRUD resource demonstrating ClawStack patterns.
+"""Example CRUD resource demonstrating SerpentStack patterns.
 
 This module shows the recommended patterns for building API endpoints:
 - Pydantic schemas for request/response validation
@@ -8,6 +8,7 @@ This module shows the recommended patterns for building API endpoints:
 - Proper HTTP status codes and error handling
 - Domain exception translation (services never raise HTTPException)
 - Route-level transaction control (routes commit, services only flush)
+- Protected routes via Depends(get_current_user) (see delete_item)
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging_config import get_logger
 from app.models.base import get_db
+from app.routes.auth import UserInfo, get_current_user, get_optional_user
 from app.schemas.item import ItemCreate, ItemListResponse, ItemResponse, ItemUpdate
 from app.services.item import ItemService
 
@@ -62,11 +64,13 @@ async def list_items(
 )
 async def create_item(
     payload: ItemCreate,
+    user: UserInfo | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
     service: ItemService = Depends(get_item_service),
 ) -> ItemResponse:
-    """Create a new item."""
-    item = await service.create_item(payload)
+    """Create a new item. If authenticated, the item is owned by the current user."""
+    user_id = uuid.UUID(user.user_id) if user else None
+    item = await service.create_item(payload, user_id=user_id)
     await db.commit()
     logger.info("item_created", item_id=str(item.id), name=item.name)
     return ItemResponse.model_validate(item)
@@ -121,15 +125,21 @@ async def update_item(
 )
 async def delete_item(
     item_id: uuid.UUID,
+    user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     service: ItemService = Depends(get_item_service),
 ) -> None:
-    """Delete an item by ID."""
-    deleted = await service.delete_item(item_id)
-    if not deleted:
+    """Delete an item by ID. Requires authentication and ownership."""
+    result = await service.delete_item(item_id, user_id=uuid.UUID(user.user_id))
+    if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Item {item_id} not found",
         )
+    if result is False:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own items",
+        )
     await db.commit()
-    logger.info("item_deleted", item_id=str(item_id))
+    logger.info("item_deleted", item_id=str(item_id), deleted_by=user.user_id)

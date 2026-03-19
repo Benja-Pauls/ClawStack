@@ -15,13 +15,13 @@ fi
 
 source <(grep -E '^(PROJECT_NAME|AWS_REGION)=' "$ROOT_DIR/.env")
 
-PROJECT="${PROJECT_NAME:-clawstack}"
+PROJECT="${PROJECT_NAME:-serpentstack}"
 REGION="${AWS_REGION:-us-east-1}"
 BUCKET="${PROJECT}-terraform-state"
 TABLE="${PROJECT}-terraform-locks"
 
 echo ""
-echo "  🦞 ClawStack — Terraform State Bootstrap"
+echo "  🐍 SerpentStack — Terraform State Bootstrap"
 echo "  ──────────────────────────────────────────"
 echo ""
 echo "  Project: $PROJECT"

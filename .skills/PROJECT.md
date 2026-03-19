@@ -3,9 +3,9 @@ skill: project-overview
 version: 2
 ---
 
-# ClawStack Project Overview
+# SerpentStack Project Overview
 
-ClawStack is a fullstack template combining FastAPI, React, PostgreSQL, and Terraform with AI agent integration.
+SerpentStack is a fullstack template combining FastAPI, React, PostgreSQL, and Terraform with AI agent integration.
 
 ## Directory Structure
 
@@ -14,9 +14,7 @@ backend/          # FastAPI Python backend (uv package manager)
 frontend/         # React + Vite + TypeScript + Tailwind frontend
 infra/            # Terraform IaC for AWS deployment
 scripts/          # CLI tools (init, deploy, deploy-init)
-.openclaw/        # OpenClaw agent configuration
 .skills/          # Agent context files + action skills (this directory)
-.nemoclaw/        # NemoClaw sandbox configuration
 ```
 
 ## Tech Stack
@@ -29,7 +27,7 @@ scripts/          # CLI tools (init, deploy, deploy-init)
 - **Testing**: pytest + testcontainers (real Postgres), httpx AsyncClient, Vitest
 - **Infrastructure**: Terraform, AWS (App Runner, ECR, RDS, S3)
 - **Observability**: Sentry (error tracking + tracing, optional via `SENTRY_DSN`)
-- **AI Agents**: OpenClaw, NemoClaw integration points
+- **AI Agents**: Works with any agent via `.skills/` context files
 
 ## Running Locally
 
@@ -79,17 +77,18 @@ make deploy env=dev   # Deploy to environment
 
 ## Agent Skills
 
-This directory contains both context files (flat markdown) and action skills (subdirectories with SKILL.md). Any agent can read them. OpenClaw auto-discovers the SKILL.md files.
+This directory contains both context files (flat markdown) and action skills (subdirectories with SKILL.md). Any agent can read them.
 
 | Skill | File | What it does |
 |---|---|---|
 | Dev Server | `.skills/dev-server/SKILL.md` | Start, monitor, and auto-fix the dev environment |
 | Deploy | `.skills/deploy/SKILL.md` | Build Docker images, push to ECR, run Terraform |
 | Scaffold | `.skills/scaffold/SKILL.md` | Generate boilerplate for new endpoints and pages |
+| Auth | `.skills/auth/SKILL.md` | Understand auth, protect routes, swap providers |
 | DB Migrate | `.skills/db-migrate/SKILL.md` | Create and run Alembic migrations |
 | Test | `.skills/test/SKILL.md` | Run and interpret pytest and vitest |
 | Git Workflow | `.skills/git-workflow/SKILL.md` | Branches, conventional commits, PRs |
-| Find Skills | `.skills/find-skills/SKILL.md` | Discover community skills from ClawHub |
+| Find Skills | `.skills/find-skills/SKILL.md` | Discover and create skills for new capabilities |
 
 When you need to perform one of these tasks, read the corresponding SKILL.md and follow its instructions.
 

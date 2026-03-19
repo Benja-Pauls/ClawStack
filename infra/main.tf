@@ -9,10 +9,10 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "clawstack-terraform-state"
+    bucket         = "serpentstack-terraform-state"
     key            = "infrastructure/terraform.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "clawstack-terraform-locks"
+    dynamodb_table = "serpentstack-terraform-locks"
     encrypt        = true
   }
 }

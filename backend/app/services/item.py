@@ -52,12 +52,13 @@ class ItemService:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def create_item(self, data: ItemCreate) -> Item:
+    async def create_item(self, data: ItemCreate, *, user_id: uuid.UUID | None = None) -> Item:
         """Create a new item. Flushes to populate defaults but does not commit."""
         item = Item(
             name=data.name,
             description=data.description,
             is_active=data.is_active,
+            user_id=user_id,
         )
         self.db.add(item)
         await self.db.flush()
@@ -79,13 +80,23 @@ class ItemService:
         logger.info("item_service_updated", item_id=str(item_id), fields=list(update_data.keys()))
         return item
 
-    async def delete_item(self, item_id: uuid.UUID) -> bool:
-        """Delete an item by ID. Returns True if deleted, False if not found."""
+    async def delete_item(self, item_id: uuid.UUID, *, user_id: uuid.UUID) -> bool | None:
+        """Delete an item by ID with ownership check.
+
+        Returns:
+            True — deleted successfully
+            None — item not found
+            False — item exists but is owned by a different user
+        """
         item = await self.get_item(item_id)
         if item is None:
+            return None
+
+        # Allow deletion if the item has no owner, or the owner matches
+        if item.user_id is not None and item.user_id != user_id:
             return False
 
         await self.db.delete(item)
         await self.db.flush()
-        logger.info("item_service_deleted", item_id=str(item_id))
+        logger.info("item_service_deleted", item_id=str(item_id), deleted_by=str(user_id))
         return True

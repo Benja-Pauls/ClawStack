@@ -46,9 +46,7 @@ This keeps services composable (multiple service calls in one transaction) and r
 
 ## Authentication
 
-Pluggable auth dependency in `routes/auth.py`. Supports custom JWT (fully functional),
-Clerk and Auth0 (stubs — JWKS validation not yet implemented, see module docstring for instructions).
-Use `Depends(get_current_user)` on protected routes. Configure provider via `AUTH_PROVIDER` env var.
+Local JWT auth in `routes/auth.py` with register, login, and token validation. Uses bcrypt password hashing via `services/user.py`. Protect routes with `Depends(get_current_user)` — returns a `UserInfo` with `user_id`, `email`, `name`. For optional auth, use `Depends(get_optional_user)`. To swap to Clerk, Auth0, or another provider, see `.skills/auth/SKILL.md`.
 
 ## Rate Limiting
 
@@ -73,7 +71,7 @@ Always log as JSON. Include `request_id` from middleware. Use event-style naming
 ## Configuration
 
 `backend/app/config.py` uses pydantic-settings. Nested config uses `__` delimiter:
-- `DB__POOL_SIZE`, `DB__ECHO`, `AUTH__PROVIDER`, `AUTH__JWKS_URL`
+- `DB__POOL_SIZE`, `DB__ECHO`
 - `CORS__ALLOW_METHODS`, `CORS__ALLOW_HEADERS` (tightened per-environment)
 - `RATE_LIMIT` (e.g., `100/minute`, `1000/hour`)
 

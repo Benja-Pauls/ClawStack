@@ -1,6 +1,6 @@
 # Tutorial: Build Your First Feature
 
-This tutorial walks you through adding a complete **Notes** feature to ClawStack — from database model to API endpoint to frontend page. By the end, you'll have a working Notes CRUD interface and a clear understanding of the patterns you'll repeat for every feature you build.
+This tutorial walks you through adding a complete **Notes** feature to SerpentStack — from database model to API endpoint to frontend page. By the end, you'll have a working Notes CRUD interface and a clear understanding of the patterns you'll repeat for every feature you build.
 
 **Time:** ~15 minutes
 
@@ -21,7 +21,7 @@ A Notes resource with:
 - React Query hook for data fetching
 - Route wired into the app
 
-The full vertical slice — everything ClawStack's `Item` example demonstrates, rebuilt from scratch for a new resource.
+The full vertical slice — everything SerpentStack's `Item` example demonstrates, rebuilt from scratch for a new resource.
 
 ---
 
@@ -34,7 +34,10 @@ Create `backend/app/models/note.py`:
 
 from __future__ import annotations
 
-from sqlalchemy import String, Text
+import uuid
+
+from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -47,9 +50,15 @@ class Note(Base):
 
     title: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
 ```
 
-**What's happening:** The model inherits from `Base`, which gives it `id` (UUID), `created_at`, and `updated_at` automatically. You only define the columns specific to your resource.
+**What's happening:** The model inherits from `Base`, which gives it `id` (UUID), `created_at`, and `updated_at` automatically. The `user_id` foreign key scopes notes to their creator — this is the pattern you'll use for nearly every resource.
 
 Register the model so Alembic can detect it. Edit `backend/app/models/__init__.py`:
 
@@ -75,7 +84,7 @@ make migrate
 Check that the table exists:
 
 ```bash
-docker compose exec postgres psql -U clawstack -d clawstack -c "\dt notes"
+docker compose exec postgres psql -U serpentstack -d serpentstack -c "\dt notes"
 ```
 
 ---
@@ -117,6 +126,7 @@ class NoteResponse(BaseModel):
     id: uuid.UUID
     title: str
     body: str | None
+    user_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
 
@@ -180,8 +190,8 @@ class NoteService:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def create_note(self, data: NoteCreate) -> Note:
-        note = Note(title=data.title, body=data.body)
+    async def create_note(self, data: NoteCreate, *, user_id: uuid.UUID | None = None) -> Note:
+        note = Note(title=data.title, body=data.body, user_id=user_id)
         self.db.add(note)
         await self.db.flush()
         await self.db.refresh(note)
@@ -228,6 +238,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging_config import get_logger
 from app.models.base import get_db
+from app.routes.auth import UserInfo, get_current_user, get_optional_user
 from app.schemas.note import NoteCreate, NoteListResponse, NoteResponse, NoteUpdate
 from app.services.note import NoteService
 
@@ -259,10 +270,12 @@ async def list_notes(
 @router.post("", response_model=NoteResponse, status_code=status.HTTP_201_CREATED)
 async def create_note(
     payload: NoteCreate,
+    user: UserInfo | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
     service: NoteService = Depends(get_note_service),
 ) -> NoteResponse:
-    note = await service.create_note(payload)
+    user_id = uuid.UUID(user.user_id) if user else None
+    note = await service.create_note(payload, user_id=user_id)
     await db.commit()
     return NoteResponse.model_validate(note)
 
@@ -295,6 +308,7 @@ async def update_note(
 @router.delete("/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_note(
     note_id: uuid.UUID,
+    user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     service: NoteService = Depends(get_note_service),
 ) -> None:
@@ -644,7 +658,7 @@ That's the full loop. Open http://localhost:8000/api/docs to see the auto-genera
 
 ## The Pattern
 
-Every feature in ClawStack follows this same structure:
+Every feature in SerpentStack follows this same structure:
 
 ```
 backend/app/models/{resource}.py       # SQLAlchemy model
@@ -658,13 +672,13 @@ frontend/src/hooks/use{Resource}.ts    # React Query hooks
 frontend/src/routes/{Resource}.tsx     # Page component
 ```
 
-The `scaffold` OpenClaw skill automates this entire process — it creates all nine files, wires up the route, and registers the router. But now you know exactly what it's generating and why.
+The `scaffold` skill (`.skills/scaffold/SKILL.md`) automates this entire process — it creates all nine files, wires up the route, and registers the router. But now you know exactly what it's generating and why.
 
 ---
 
 ## Next Steps
 
-- **Add authentication:** Protect the notes endpoints with `Depends(get_current_user)` from `routes/auth.py`
-- **Add relationships:** Create a foreign key from notes to a user model
 - **Deploy it:** Run `make deploy` to ship to AWS
 - **Customize the frontend:** Edit the Tailwind theme in `frontend/src/index.css`
+- **Add more auth:** Require authentication on create and update too (use `get_current_user` instead of `get_optional_user`)
+- **Swap auth providers:** Follow `.skills/auth/SKILL.md` to switch from built-in JWT to Clerk, Auth0, etc.

@@ -28,7 +28,10 @@
       "Bash(make lint:*)",
       "Bash(grep -r \"SlowAPI\\\\|slowapi\\\\|ratelimit\\\\|RateLimit\" /Users/ben_paulson/Documents/ClawStack/backend --include=*.py)",
       "Bash(find /Users/ben_paulson/Documents/ClawStack -name *openapi* -o -name *swagger* -o -name *codegen*)",
-      "Bash(grep -r \"codegen\\\\|openapi-typescript\" /Users/ben_paulson/Documents/ClawStack --include=*.json --include=*.toml)"
+      "Bash(grep -r \"codegen\\\\|openapi-typescript\" /Users/ben_paulson/Documents/ClawStack --include=*.json --include=*.toml)",
+      "Bash(uv lock:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npx eslint:*)"
     ]
   }
 }

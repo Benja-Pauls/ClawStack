@@ -78,8 +78,8 @@ jobs:
       - name: Read project name from .env.example
         id: project
         run: |
-          PROJECT=$(grep -E '^PROJECT_NAME=' .env.example 2>/dev/null | cut -d= -f2 || echo "clawstack")
-          echo "name=${PROJECT:-clawstack}" >> "$GITHUB_OUTPUT"
+          PROJECT=$(grep -E '^PROJECT_NAME=' .env.example 2>/dev/null | cut -d= -f2 || echo "serpentstack")
+          echo "name=${PROJECT:-serpentstack}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push backend image
         env:

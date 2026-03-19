@@ -2,18 +2,18 @@ terraform {
   required_version = ">= 1.5.0"
 
   backend "s3" {
-    bucket         = "clawstack-terraform-state"
+    bucket         = "serpentstack-terraform-state"
     key            = "prod/terraform.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "clawstack-terraform-locks"
+    dynamodb_table = "serpentstack-terraform-locks"
     encrypt        = true
   }
 }
 
-module "clawstack" {
+module "serpentstack" {
   source = "../../"
 
-  project_name      = "clawstack"
+  project_name      = "serpentstack"
   environment       = "prod"
   aws_region        = "us-east-1"
   db_instance_class = "db.t3.medium"
@@ -26,9 +26,9 @@ variable "app_image_tag" {
 }
 
 output "app_url" {
-  value = module.clawstack.app_url
+  value = module.serpentstack.app_url
 }
 
 output "ecr_repository_url" {
-  value = module.clawstack.ecr_repository_url
+  value = module.serpentstack.ecr_repository_url
 }

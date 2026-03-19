@@ -17,12 +17,12 @@ fi
 
 source <(grep -E '^(PROJECT_NAME|AWS_REGION)=' "$ROOT_DIR/.env")
 
-PROJECT="${PROJECT_NAME:-clawstack}"
+PROJECT="${PROJECT_NAME:-serpentstack}"
 REGION="${AWS_REGION:-us-east-1}"
 INFRA_DIR="$ROOT_DIR/infra/environments/$ENVIRONMENT"
 
 echo ""
-echo "  🦞 ClawStack — Deploy ($ENVIRONMENT)"
+echo "  🐍 SerpentStack — Deploy ($ENVIRONMENT)"
 echo "  ──────────────────────────────────────"
 echo ""
 echo "  Project:     $PROJECT"

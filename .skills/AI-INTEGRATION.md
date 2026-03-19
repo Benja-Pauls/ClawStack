@@ -1,11 +1,11 @@
 ---
 skill: ai-integration
-version: 1
+version: 2
 ---
 
 # Adding AI/LLM Features to Your App
 
-ClawStack is optimized for AI-agent-assisted *development* — but many apps built with it will also call LLM APIs as a product feature (chatbots, summarization, RAG, agents). This guide shows where those pieces fit in the existing architecture.
+SerpentStack is optimized for AI-agent-assisted *development* — but many apps built with it will also call LLM APIs as a product feature (chatbots, summarization, RAG, agents). This guide shows where those pieces fit in the existing architecture.
 
 ## API Keys and Configuration
 
@@ -38,94 +38,43 @@ Never commit API keys. The `.env` file is already in `.gitignore`.
 LLM calls belong in the service layer, not in route handlers. Create `backend/app/services/ai.py`:
 
 ```python
-import anthropic
 from app.config import settings
+from app.logging_config import get_logger
 
-def get_ai_client() -> anthropic.Anthropic:
-    return anthropic.Anthropic(api_key=settings.ai.api_key)
+logger = get_logger(__name__)
 
-def generate_completion(prompt: str, system: str | None = None) -> str:
-    client = get_ai_client()
-    message = client.messages.create(
-        model=settings.ai.model,
-        max_tokens=settings.ai.max_tokens,
-        system=system or "You are a helpful assistant.",
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return message.content[0].text
+# Install your preferred provider SDK:
+#   cd backend && uv add anthropic     # Anthropic (Claude)
+#   cd backend && uv add openai        # OpenAI (GPT)
+#   cd backend && uv add google-genai  # Google (Gemini)
+#
+# Then import and initialize the client here.
+# See official docs for the latest API:
+#   Anthropic: https://docs.anthropic.com/en/api/messages
+#   OpenAI:    https://platform.openai.com/docs/api-reference
+#   Google:    https://ai.google.dev/gemini-api/docs
 ```
 
 Then call from a route:
 
 ```python
 @router.post("/api/v1/ai/complete")
-def complete(request: CompletionRequest, db: Session = Depends(get_db)):
-    result = generate_completion(request.prompt, system=request.system)
+async def complete(request: CompletionRequest, db: AsyncSession = Depends(get_db)):
+    result = await ai_service.generate(request.prompt, system=request.system)
     return {"response": result}
 ```
 
 ## Streaming Responses
 
-For chat UIs, use FastAPI's `StreamingResponse` with the provider's streaming API:
+For chat UIs, use FastAPI's `StreamingResponse` with the provider's streaming API. A working SSE reference implementation is already at `backend/app/routes/stream.py` — replace the mock generator with your actual LLM client.
 
-```python
-from fastapi.responses import StreamingResponse
+Key points:
+- SSE (Server-Sent Events) is the standard transport for streaming AI completions
+- Native browser support via EventSource API with automatic reconnection
+- Works through proxies and load balancers
+- Simpler than WebSockets for unidirectional streaming
 
-def stream_completion(prompt: str, system: str | None = None):
-    client = get_ai_client()
-    with client.messages.stream(
-        model=settings.ai.model,
-        max_tokens=settings.ai.max_tokens,
-        system=system or "You are a helpful assistant.",
-        messages=[{"role": "user", "content": prompt}],
-    ) as stream:
-        for text in stream.text_stream:
-            yield f"data: {text}\n\n"
-    yield "data: [DONE]\n\n"
-
-@router.post("/api/v1/ai/stream")
-def stream(request: CompletionRequest):
-    return StreamingResponse(
-        stream_completion(request.prompt, request.system),
-        media_type="text/event-stream",
-    )
-```
-
-## Tool Use / Function Calling
-
-Define tools as plain Python functions, then pass their schemas to the LLM:
-
-```python
-tools = [
-    {
-        "name": "search_items",
-        "description": "Search items in the database",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Search query"}
-            },
-            "required": ["query"],
-        },
-    }
-]
-
-def handle_tool_call(name: str, input: dict, db: Session):
-    if name == "search_items":
-        return item_service.search_items(db, input["query"])
-```
-
-This keeps tool implementations in the service layer where they can access the database and other services.
-
-## Provider Libraries
-
-Install with uv:
-
-```bash
-cd backend && uv add anthropic     # Anthropic (Claude)
-cd backend && uv add openai        # OpenAI (GPT)
-cd backend && uv add google-genai  # Google (Gemini)
-```
+See the existing `stream.py` for the full SSE event format and error handling pattern.
 
 ## Frontend: Consuming Streams
 
@@ -160,24 +109,28 @@ async function streamChat(prompt: string, onChunk: (text: string) => void) {
 Log token usage from API responses for cost monitoring:
 
 ```python
-from app.logging_config import get_logger
-logger = get_logger(__name__)
-
-def generate_completion(prompt: str, system: str | None = None) -> str:
-    client = get_ai_client()
-    message = client.messages.create(...)
-
-    logger.info(
-        "ai_completion",
-        model=message.model,
-        input_tokens=message.usage.input_tokens,
-        output_tokens=message.usage.output_tokens,
-    )
-    return message.content[0].text
+logger.info(
+    "ai_completion",
+    model=response.model,
+    input_tokens=response.usage.input_tokens,
+    output_tokens=response.usage.output_tokens,
+)
 ```
 
-Since ClawStack already uses structured JSON logging, these events are queryable in CloudWatch or any log aggregator.
+Since SerpentStack already uses structured JSON logging, these events are queryable in CloudWatch or any log aggregator.
+
+## Provider Libraries
+
+Install with uv:
+
+```bash
+cd backend && uv add anthropic     # Anthropic (Claude) — https://docs.anthropic.com
+cd backend && uv add openai        # OpenAI (GPT) — https://platform.openai.com/docs
+cd backend && uv add google-genai  # Google (Gemini) — https://ai.google.dev/gemini-api/docs
+```
+
+Always refer to the provider's official documentation for the latest API signatures — SDKs are updated frequently.
 
 ## What This Is Not
 
-This guide covers adding LLM features to your *application*. If you want an AI agent to help you *develop* the application, that's what the `.skills/` context files and OpenClaw integration are for — see the README's Integration Tiers section.
+This guide covers adding LLM features to your *application*. If you want an AI agent to help you *develop* the application, that's what the `.skills/` context files are for — see the README.

@@ -1,19 +1,11 @@
 ---
-name: clawstack-db-migrate
-description: "Manage database schema changes with Alembic in ClawStack. Use when: creating migrations, adding tables or columns, checking migration status, rolling back."
-metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "🗃️",
-        "requires": { "bins": ["uv"] },
-      },
-  }
+name: serpentstack-db-migrate
+description: "Manage database schema changes with Alembic in SerpentStack. Use when: creating migrations, adding tables or columns, checking migration status, rolling back."
 ---
 
 # Database Migrations
 
-Manage database schema changes with Alembic in ClawStack.
+Manage database schema changes with Alembic in SerpentStack.
 
 ## Prerequisites
 

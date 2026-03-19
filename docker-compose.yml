@@ -1,27 +1,27 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: clawstack-postgres
+    container_name: serpentstack-postgres
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-clawstack}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-clawstack}
-      POSTGRES_DB: ${POSTGRES_DB:-clawstack}
+      POSTGRES_USER: ${POSTGRES_USER:-serpentstack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-serpentstack}
+      POSTGRES_DB: ${POSTGRES_DB:-serpentstack}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-clawstack} -d ${POSTGRES_DB:-clawstack}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-serpentstack} -d ${POSTGRES_DB:-serpentstack}"]
       interval: 5s
       timeout: 5s
       retries: 5
       start_period: 10s
     networks:
-      - clawstack-network
+      - serpentstack-network
 
   redis:
     image: redis:7-alpine
-    container_name: clawstack-redis
+    container_name: serpentstack-redis
     ports:
       - "6379:6379"
     healthcheck:
@@ -30,19 +30,19 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - clawstack-network
+      - serpentstack-network
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: clawstack-backend
+    container_name: serpentstack-backend
     ports:
       - "8000:8000"
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-clawstack}:${POSTGRES_PASSWORD:-clawstack}@postgres:5432/${POSTGRES_DB:-clawstack}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-serpentstack}:${POSTGRES_PASSWORD:-serpentstack}@postgres:5432/${POSTGRES_DB:-serpentstack}
       RATE_LIMIT_STORAGE_URI: redis://redis:6379
     volumes:
       - ./backend:/app
@@ -52,14 +52,14 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - clawstack-network
+      - serpentstack-network
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       target: dev
-    container_name: clawstack-frontend
+    container_name: serpentstack-frontend
     ports:
       - "5173:5173"
     command: npm run dev -- --host 0.0.0.0
@@ -69,12 +69,12 @@ services:
     depends_on:
       - backend
     networks:
-      - clawstack-network
+      - serpentstack-network
 
 volumes:
   postgres_data:
     driver: local
 
 networks:
-  clawstack-network:
+  serpentstack-network:
     driver: bridge

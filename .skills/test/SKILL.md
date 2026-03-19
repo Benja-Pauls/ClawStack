@@ -1,19 +1,11 @@
 ---
-name: clawstack-test
-description: "Run and interpret tests for ClawStack backend and frontend. Use when: running test suites, debugging test failures, checking coverage, writing new tests."
-metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "🧪",
-        "requires": { "bins": ["uv", "node"] },
-      },
-  }
+name: serpentstack-test
+description: "Run and interpret tests for SerpentStack backend and frontend. Use when: running test suites, debugging test failures, checking coverage, writing new tests."
 ---
 
 # Test
 
-Run and interpret tests for ClawStack backend and frontend.
+Run and interpret tests for SerpentStack backend and frontend.
 
 ## Backend Tests (pytest)
 

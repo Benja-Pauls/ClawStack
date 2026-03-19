@@ -1,6 +1,6 @@
 ---
 name: New skill submission
-about: Contribute a new OpenClaw skill to the template
+about: Contribute a new skill to the template
 title: '[skill] '
 labels: skill
 assignees: ''
@@ -22,9 +22,9 @@ One paragraph describing the task this skill automates and when a developer woul
 ## Checklist
 
 - [ ] SKILL.md is 30-80 lines (core instructions only — not documentation)
-- [ ] Commands in the skill have been tested against the ClawStack project
-- [ ] File paths reference actual ClawStack paths (e.g. `backend/app/routes/`, not generic paths)
-- [ ] Skill doesn't require tools outside the standard ClawStack dev environment
+- [ ] Commands in the skill have been tested against the SerpentStack project
+- [ ] File paths reference actual SerpentStack paths (e.g. `backend/app/routes/`, not generic paths)
+- [ ] Skill doesn't require tools outside the standard SerpentStack dev environment
 
 ## Notes for reviewers
 

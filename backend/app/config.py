@@ -3,7 +3,6 @@
 Environment variables are loaded from .env file and can use __ delimiter
 for nested settings. For example:
     DB__POOL_SIZE=10
-    AUTH__PROVIDER=clerk
 """
 
 from __future__ import annotations
@@ -22,20 +21,6 @@ class DBConfig(BaseSettings):
     pool_timeout: int = Field(default=30, description="Pool timeout in seconds")
     pool_recycle: int = Field(default=1800, description="Recycle connections after N seconds")
     echo: bool = Field(default=False, description="Echo SQL statements (debug only)")
-
-
-class AuthConfig(BaseSettings):
-    """Authentication provider configuration."""
-
-    model_config = SettingsConfigDict(env_prefix="AUTH__")
-
-    provider: str = Field(
-        default="custom",
-        description="Auth provider: clerk, auth0, or custom",
-    )
-    jwks_url: str = Field(default="", description="JWKS endpoint URL for JWT validation")
-    issuer: str = Field(default="", description="JWT issuer for validation")
-    audience: str = Field(default="", description="JWT audience for validation")
 
 
 class CORSConfig(BaseSettings):
@@ -69,7 +54,7 @@ class Settings(BaseSettings):
     )
 
     # Core
-    PROJECT_NAME: str = "ClawStack"
+    PROJECT_NAME: str = "SerpentStack"
     VERSION: str = "0.1.0"
     ENVIRONMENT: str = Field(
         default="dev",
@@ -82,7 +67,7 @@ class Settings(BaseSettings):
 
     # Database (async driver — use postgresql+asyncpg:// for async SQLAlchemy)
     DATABASE_URL: str = Field(
-        default="postgresql+asyncpg://localhost/clawstack",
+        default="postgresql+asyncpg://localhost/serpentstack",
         description="PostgreSQL async connection string (asyncpg driver)",
     )
 
@@ -100,12 +85,6 @@ class Settings(BaseSettings):
 
     # Logging
     LOG_LEVEL: str = Field(default="INFO", description="Log level")
-
-    # Auth provider shortcut (also configurable via AUTH__PROVIDER)
-    AUTH_PROVIDER: str = Field(
-        default="custom",
-        description="Auth provider: clerk, auth0, or custom",
-    )
 
     # Rate limiting
     RATE_LIMIT: str = Field(
@@ -125,7 +104,6 @@ class Settings(BaseSettings):
 
     # Nested configs
     db: DBConfig = DBConfig()
-    auth: AuthConfig = AuthConfig()
     cors: CORSConfig = CORSConfig()
 
     @model_validator(mode="after")

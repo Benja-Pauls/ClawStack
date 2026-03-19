@@ -1,6 +1,7 @@
 import type { ApiError } from "@/types/api";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const TOKEN_KEY = "access_token";
 
 class ApiClientError extends Error {
   status: number;
@@ -14,6 +15,21 @@ class ApiClientError extends Error {
   }
 }
 
+/** Store the JWT token (call after login/register). */
+function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+/** Remove the stored token (call on logout). */
+function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+/** Get the stored token, or null if not set. */
+function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
 async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
@@ -24,6 +40,12 @@ async function apiRequest<T>(
     "Content-Type": "application/json",
     ...options.headers,
   };
+
+  // Inject auth token if available
+  const token = getToken();
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
 
   const response = await fetch(url, {
     ...options,
@@ -52,4 +74,4 @@ async function apiRequest<T>(
   return response.json() as Promise<T>;
 }
 
-export { apiRequest, ApiClientError };
+export { apiRequest, ApiClientError, setToken, clearToken, getToken };

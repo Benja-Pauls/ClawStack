@@ -31,7 +31,7 @@ What actually happened. Include error messages, stack traces, or screenshots.
 - **Python version:** (run `python3 --version`)
 - **Node version:** (run `node --version`)
 - **Docker version:** (run `docker --version`)
-- **ClawStack version / commit:** (run `git rev-parse --short HEAD`)
+- **SerpentStack version / commit:** (run `git rev-parse --short HEAD`)
 
 ## Backend logs
 

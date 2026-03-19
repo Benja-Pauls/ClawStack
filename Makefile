@@ -1,4 +1,4 @@
-.PHONY: init dev dev-docker test test-backend test-frontend migrate migrate-new build lint clean setup deploy-init deploy types seed worker ui
+.PHONY: init dev dev-docker test test-backend test-frontend migrate migrate-new build lint clean setup deploy-init deploy types seed worker ui verify
 
 init:
 	python3 scripts/init.py
@@ -7,6 +7,8 @@ dev:
 	docker compose up -d postgres redis
 	@echo "Waiting for postgres..."
 	@until docker compose exec postgres pg_isready > /dev/null 2>&1; do sleep 1; done
+	@echo "Running migrations..."
+	cd backend && uv run alembic upgrade head
 	@echo "Postgres ready. Starting backend and frontend..."
 	$(MAKE) -j2 _dev-backend _dev-frontend
 
@@ -68,6 +70,20 @@ worker:
 
 ui:
 	@cd frontend && npx shadcn@latest add $(component)
+
+verify:
+	@echo "── Lint (backend) ──"
+	cd backend && uv run ruff check . && uv run ruff format --check .
+	@echo "── Lint (frontend) ──"
+	cd frontend && npm run lint
+	@echo "── Type check (frontend) ──"
+	cd frontend && npx tsc --noEmit
+	@echo "── Tests (backend) ──"
+	cd backend && uv run pytest --tb=short -q
+	@echo "── Tests (frontend) ──"
+	cd frontend && npm test
+	@echo ""
+	@echo "✅ All checks passed."
 
 types:
 	@echo "Generating TypeScript types from OpenAPI spec..."

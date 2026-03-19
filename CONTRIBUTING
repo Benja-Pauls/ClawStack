@@ -1,6 +1,6 @@
-# Contributing to ClawStack
+# Contributing to SerpentStack
 
-Thank you for your interest in contributing! ClawStack is an open-source project and contributions of all kinds are welcome — bug fixes, new features, documentation improvements, alternative infrastructure modules, and new agent skills.
+Thank you for your interest in contributing! SerpentStack is an open-source project and contributions of all kinds are welcome — bug fixes, new features, documentation improvements, alternative infrastructure modules, and new agent skills.
 
 ---
 
@@ -21,8 +21,8 @@ Thank you for your interest in contributing! ClawStack is an open-source project
 **Prerequisites:** Python 3.12+, Node 22+, Docker, [uv](https://docs.astral.sh/uv/)
 
 ```bash
-git clone https://github.com/Benja-Pauls/ClawStack.git
-cd ClawStack
+git clone https://github.com/Benja-Pauls/SerpentStack.git
+cd SerpentStack
 
 # Interactive setup
 make init
@@ -177,4 +177,4 @@ PRs that break CI, lack tests for new features, or don't fill in the template wi
 
 ## Questions?
 
-Open a [GitHub Discussion](https://github.com/Benja-Pauls/ClawStack/discussions) for questions, ideas, or general feedback. Use Issues for bugs and feature requests.
+Open a [GitHub Discussion](https://github.com/Benja-Pauls/SerpentStack/discussions) for questions, ideas, or general feedback. Use Issues for bugs and feature requests.

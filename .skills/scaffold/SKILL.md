@@ -1,19 +1,11 @@
 ---
-name: clawstack-scaffold
-description: "Generate boilerplate for new API endpoints and frontend pages in ClawStack. Use when: adding a new resource, creating CRUD endpoints, wiring up a new frontend page."
-metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "🏗️",
-        "requires": { "bins": ["uv", "node"] },
-      },
-  }
+name: serpentstack-scaffold
+description: "Generate boilerplate for new API endpoints and frontend pages in SerpentStack. Use when: adding a new resource, creating CRUD endpoints, wiring up a new frontend page."
 ---
 
 # Scaffold
 
-Generate boilerplate for new API endpoints and frontend pages in ClawStack.
+Generate boilerplate for new API endpoints and frontend pages in SerpentStack.
 
 ## Adding a New API Endpoint
 
@@ -24,7 +16,10 @@ Given a resource name (e.g., `projects`), create the following files in order.
 Inherit from `Base` which provides `id` (UUID), `created_at`, and `updated_at` automatically.
 
 ```python
-from sqlalchemy import Boolean, String, Text
+import uuid
+
+from sqlalchemy import Boolean, ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -36,6 +31,14 @@ class {Name}(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Owner — see Item model for the reference pattern
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
 ```
 
 Register the model by adding to `backend/app/models/__init__.py`:
@@ -67,6 +70,7 @@ class {Name}Update(BaseModel):
 class {Name}Response({Name}Base):
     id: UUID
     is_active: bool
+    user_id: UUID | None
     created_at: datetime
     updated_at: datetime
 
@@ -97,8 +101,8 @@ class {Name}Service:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def create(self, data: {Name}Create) -> {Name}:
-        item = {Name}(**data.model_dump())
+    async def create(self, data: {Name}Create, *, user_id: uuid.UUID | None = None) -> {Name}:
+        item = {Name}(**data.model_dump(), user_id=user_id)
         self.db.add(item)
         await self.db.flush()
         await self.db.refresh(item)
@@ -124,9 +128,18 @@ class {Name}Service:
         await self.db.refresh(item)
         return item
 
-    async def delete(self, {name}_id: UUID) -> bool:
+    async def delete(self, {name}_id: UUID, *, user_id: UUID) -> bool | None:
+        """Delete with ownership check.
+
+        Returns:
+            True  — deleted successfully
+            None  — not found
+            False — exists but owned by a different user
+        """
         item = await self.get({name}_id)
         if item is None:
+            return None
+        if item.user_id is not None and item.user_id != user_id:
             return False
         await self.db.delete(item)
         await self.db.flush()
@@ -144,6 +157,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import get_db
+from app.routes.auth import UserInfo, get_current_user, get_optional_user
 from app.schemas.{name} import {Name}Create, {Name}Update, {Name}Response, {Name}ListResponse
 from app.services.{name} import {Name}Service
 
@@ -157,10 +171,12 @@ async def get_service(db: AsyncSession = Depends(get_db)) -> {Name}Service:
 @router.post("", response_model={Name}Response, status_code=201)
 async def create(
     data: {Name}Create,
+    user: UserInfo | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
     service: {Name}Service = Depends(get_service),
 ):
-    item = await service.create(data)
+    user_id = UUID(user.user_id) if user else None
+    item = await service.create(data, user_id=user_id)
     await db.commit()
     return item
 
@@ -196,11 +212,15 @@ async def update(
 @router.delete("/{{{name}_id}}", status_code=204)
 async def delete(
     {name}_id: UUID,
+    user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     service: {Name}Service = Depends(get_service),
 ):
-    if not await service.delete({name}_id):
+    result = await service.delete({name}_id, user_id=UUID(user.user_id))
+    if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="{Name} not found")
+    if result is False:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete your own {name}s")
     await db.commit()
 ```
 
@@ -222,14 +242,12 @@ cd backend && uv run alembic upgrade head
 
 ### 7. Add Tests -- `backend/tests/test_{name}.py`
 
-Tests use a real PostgreSQL container via testcontainers (see `conftest.py`) and async httpx `AsyncClient`.
+Tests use a real PostgreSQL container via testcontainers (see `conftest.py`) and async httpx `AsyncClient`. The `@pytest.mark.asyncio` decorator is **not needed** — `asyncio_mode = "auto"` is set in `pyproject.toml`.
 
 ```python
-import pytest
 from httpx import AsyncClient
 
 
-@pytest.mark.asyncio
 async def test_create_{name}(client: AsyncClient):
     response = await client.post("/api/v1/{name}s", json={{"title": "Test {Name}"}})
     assert response.status_code == 201
@@ -237,7 +255,7 @@ async def test_create_{name}(client: AsyncClient):
     assert data["title"] == "Test {Name}"
     assert "id" in data
 
-@pytest.mark.asyncio
+
 async def test_list_{name}s(client: AsyncClient):
     response = await client.get("/api/v1/{name}s")
     assert response.status_code == 200
@@ -245,7 +263,7 @@ async def test_list_{name}s(client: AsyncClient):
     assert "{name}s" in data
     assert "total" in data
 
-@pytest.mark.asyncio
+
 async def test_get_{name}_not_found(client: AsyncClient):
     response = await client.get("/api/v1/{name}s/00000000-0000-0000-0000-000000000000")
     assert response.status_code == 404
@@ -284,18 +302,27 @@ If you need custom types beyond what the API provides, add them to `frontend/src
 ### 2. API Client -- `frontend/src/api/{name}.ts`
 
 ```typescript
-import {{ api }} from "./client";
+import {{ apiRequest }} from "./client";
 import type {{ components }} from "../types/api.generated";
 
 type {Name} = components["schemas"]["{Name}Response"];
 type {Name}Create = components["schemas"]["{Name}Create"];
 type {Name}ListResponse = components["schemas"]["{Name}ListResponse"];
 
-export const get{Name}s = (): Promise<{Name}ListResponse> => api.get("/{name}s");
-export const get{Name} = (id: string): Promise<{Name}> => api.get(`/{name}s/${{id}}`);
-export const create{Name} = (data: {Name}Create): Promise<{Name}> => api.post("/{name}s", data);
-export const update{Name} = (id: string, data: Partial<{Name}>): Promise<{Name}> => api.put(`/{name}s/${{id}}`, data);
-export const delete{Name} = (id: string): Promise<void> => api.delete(`/{name}s/${{id}}`);
+export const get{Name}s = (): Promise<{Name}ListResponse> =>
+  apiRequest("/{name}s");
+
+export const get{Name} = (id: string): Promise<{Name}> =>
+  apiRequest(`/{name}s/${{id}}`);
+
+export const create{Name} = (data: {Name}Create): Promise<{Name}> =>
+  apiRequest("/{name}s", {{ method: "POST", body: JSON.stringify(data) }});
+
+export const update{Name} = (id: string, data: Partial<{Name}>): Promise<{Name}> =>
+  apiRequest(`/{name}s/${{id}}`, {{ method: "PUT", body: JSON.stringify(data) }});
+
+export const delete{Name} = (id: string): Promise<void> =>
+  apiRequest(`/{name}s/${{id}}`, {{ method: "DELETE" }});
 ```
 
 ### 3. React Query Hooks -- `frontend/src/hooks/use{Name}s.ts`

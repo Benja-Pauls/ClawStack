@@ -32,6 +32,8 @@ logger = get_logger(__name__)
 PUBLIC_PATHS = {
     "/api/v1/health",
     "/api/v1/health/ready",
+    "/api/v1/auth/register",
+    "/api/v1/auth/login",
     "/api/docs",
     "/api/redoc",
     "/api/openapi.json",
@@ -42,7 +44,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     """Optional global authentication middleware.
 
     Enforces authentication on all /api/ routes except those in PUBLIC_PATHS.
-    This is NOT included by default -- add it to create_app() if you want
+    This is NOT included by default — add it to create_app() if you want
     global auth enforcement:
 
         from app.middleware.auth import AuthMiddleware

@@ -5,7 +5,7 @@ import App from "../src/App";
 describe("App", () => {
   it("renders the application header", () => {
     render(<App />);
-    const elements = screen.getAllByText("ClawStack");
+    const elements = screen.getAllByText("SerpentStack");
     expect(elements.length).toBeGreaterThanOrEqual(1);
   });
 

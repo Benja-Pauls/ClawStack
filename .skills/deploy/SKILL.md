@@ -1,19 +1,11 @@
 ---
-name: clawstack-deploy
-description: "Build, push, and deploy ClawStack to AWS using Docker, ECR, and Terraform. Use when: deploying to dev/staging/prod, checking deploy status, rolling back."
-metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "🚀",
-        "requires": { "bins": ["docker", "aws", "terraform"] },
-      },
-  }
+name: serpentstack-deploy
+description: "Build, push, and deploy SerpentStack to AWS using Docker, ECR, and Terraform. Use when: deploying to dev/staging/prod, checking deploy status, rolling back."
 ---
 
 # Deploy
 
-Build, push, and deploy ClawStack to AWS using Docker and Terraform.
+Build, push, and deploy SerpentStack to AWS using Docker and Terraform.
 
 ## Environments
 
@@ -38,16 +30,16 @@ Or use the GitHub Actions CD pipeline — it runs automatically on push to `main
 ### Step 1: Build Docker Images
 
 ```bash
-docker build -t clawstack-backend:latest ./backend
-docker build -t clawstack-frontend:latest ./frontend
+docker build -t serpentstack-backend:latest ./backend
+docker build -t serpentstack-frontend:latest ./frontend
 ```
 
 Tag with the git SHA for traceability:
 
 ```bash
 GIT_SHA=$(git rev-parse --short HEAD)
-docker tag clawstack-backend:latest clawstack-backend:$GIT_SHA
-docker tag clawstack-frontend:latest clawstack-frontend:$GIT_SHA
+docker tag serpentstack-backend:latest serpentstack-backend:$GIT_SHA
+docker tag serpentstack-frontend:latest serpentstack-frontend:$GIT_SHA
 ```
 
 ### Step 2: Push to ECR
@@ -62,11 +54,11 @@ aws ecr get-login-password --region $AWS_REGION | \
 Tag and push both images:
 
 ```bash
-docker tag clawstack-backend:$GIT_SHA $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/clawstack-backend:$GIT_SHA
-docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/clawstack-backend:$GIT_SHA
+docker tag serpentstack-backend:$GIT_SHA $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/serpentstack-backend:$GIT_SHA
+docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/serpentstack-backend:$GIT_SHA
 
-docker tag clawstack-frontend:$GIT_SHA $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/clawstack-frontend:$GIT_SHA
-docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/clawstack-frontend:$GIT_SHA
+docker tag serpentstack-frontend:$GIT_SHA $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/serpentstack-frontend:$GIT_SHA
+docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/serpentstack-frontend:$GIT_SHA
 ```
 
 ### Step 3: Terraform Plan

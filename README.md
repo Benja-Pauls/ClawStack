@@ -1,6 +1,6 @@
-# 🦞 ClawStack - Fullstack AI-Agent-Assisted Development Template
+# 🐍 SerpentStack — Fullstack AI-Agent-Assisted Development Template
 
-<p align="center"><img src="assets/clawstack-logo.png" alt="ClawStack" width="600" /></p>
+<p align="center"><img src="assets/serpentstack-logo.png" alt="SerpentStack" width="600" /></p>
 
 <p align="center">
   <strong>The first fullstack template designed for AI-agent-assisted development.</strong><br/>
@@ -9,30 +9,29 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
-  <a href="https://github.com/Benja-Pauls/ClawStack/actions/workflows/ci.yml"><img src="https://github.com/Benja-Pauls/ClawStack/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/Benja-Pauls/ClawStack/releases/latest"><img src="https://img.shields.io/github/v/release/Benja-Pauls/ClawStack" alt="Release" /></a>
-  <img src="https://img.shields.io/badge/OpenClaw_%7C_NemoClaw-compatible-7c3aed" alt="OpenClaw | NemoClaw compatible" />
-  <a href="https://github.com/Benja-Pauls/ClawStack/stargazers"><img src="https://img.shields.io/github/stars/Benja-Pauls/ClawStack?style=social" alt="GitHub stars" /></a>
+  <a href="https://github.com/Benja-Pauls/SerpentStack/actions/workflows/ci.yml"><img src="https://github.com/Benja-Pauls/SerpentStack/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/Benja-Pauls/SerpentStack/releases/latest"><img src="https://img.shields.io/github/v/release/Benja-Pauls/SerpentStack" alt="Release" /></a>
+  <img src="https://img.shields.io/badge/any_AI_agent-compatible-7c3aed" alt="Any AI agent compatible" />
+  <a href="https://github.com/Benja-Pauls/SerpentStack/stargazers"><img src="https://img.shields.io/github/stars/Benja-Pauls/SerpentStack?style=social" alt="GitHub stars" /></a>
 </p>
 
 <p align="center">
-  <a href="#tier-1">Tier 1: Quick Start</a> ·
-  <a href="#tier-2">Tier 2: OpenClaw</a> ·
-  <a href="#tier-3">Tier 3: NemoClaw</a> ·
-  <a href="#deploy-to-aws">Deploy to AWS</a> ·
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#deploy-to-aws">Deploy</a> ·
   <a href="docs/tutorial.md">Tutorial</a> ·
   <a href="#skills">Skills</a> ·
-  <a href="#configuration">Config</a> ·
+  <a href="#agent-integrations">Agent Integrations</a> ·
+  <a href="#customize">Customize</a> ·
   <a href="docs/faq.md">FAQ</a>
 </p>
 
 ---
 
-## Why ClawStack?
+## Why SerpentStack?
 
 Every AI coding session starts cold. The agent doesn't know your project structure, your conventions, or why you're using Alembic instead of raw SQL. It hallucinates paths and scaffolds patterns that don't fit.
 
-ClawStack ships with SKILL.md context files your agent reads immediately, structured JSON logging it can parse programmatically, and automation skills for dev server watching, endpoint scaffolding, and one-command AWS deploys. The skills are plain markdown — any agent can follow them. OpenClaw makes them persistent and automatic.
+SerpentStack ships with SKILL.md context files your agent reads immediately, structured JSON logging it can parse programmatically, and automation skills for dev server watching, endpoint scaffolding, and one-command AWS deploys. The skills are plain markdown — any agent can follow them (Claude Code, Cursor, Copilot, or anything else that can read files).
 
 See [Customize ↓](#customize) for how to make this fit with your own stack.
 
@@ -41,7 +40,7 @@ See [Customize ↓](#customize) for how to make this fit with your own stack.
 <table>
 <tr>
 <td width="160"><img src="https://img.shields.io/badge/Frontend-61DAFB?style=for-the-badge&logoColor=black" /></td>
-<td><strong>React 18 · TypeScript · Vite 6 · Tailwind v4</strong><br/>TanStack Query for data fetching · React Router v6 · Vitest</td>
+<td><strong>React 18 · TypeScript · Vite 6 · Tailwind v4 · shadcn/ui</strong><br/>TanStack Query for data fetching · React Router v6 · Vitest</td>
 </tr>
 <tr>
 <td><img src="https://img.shields.io/badge/Backend-22C55E?style=for-the-badge&logoColor=white" /></td>
@@ -61,76 +60,39 @@ See [Customize ↓](#customize) for how to make this fit with your own stack.
 </tr>
 <tr>
 <td><img src="https://img.shields.io/badge/Agent_Context-7C3AED?style=for-the-badge&logoColor=white" /></td>
-<td><strong>SKILL.md context files · agent skills · openclaw.json</strong><br/>Any agent reads the context and skills · OpenClaw/NemoClaw add persistent automation</td>
+<td><strong>SKILL.md context files · agent skills · .cursorrules · copilot-instructions</strong><br/>Works with any AI agent — Claude Code, Cursor, Copilot, and more</td>
 </tr>
 </table>
 
-## Integration Tiers
+## Works With Any Agent
 
-Start with whatever agent you already use. Add tools when you want more automation.
+Clone the repo, run `make dev`, and point your agent at `.skills/`. The context files and skills are plain markdown — no vendor lock-in.
 
-<table>
-<tr>
-<td width="33%" valign="top">
-
-### Tier 1 — Any Agent
-
-Clone the repo, run `make dev`, and point your agent at `.skills/`. The SKILL.md context files and structured JSON logging work with Claude Code, Cursor, Copilot, or anything else that can read files.
-
-**→ [Quick Start ↓](#quick-start)**
-
-</td>
-<td width="33%" valign="top">
-
-### Tier 2 — + OpenClaw
-
-Install OpenClaw and run `openclaw tui`. Your agent gains persistent automation: it watches dev servers, auto-fixes errors, scaffolds endpoints, deploys to AWS, and routes tasks between a local model and a frontier model.
-
-**→ [Skills ↓](#skills) · [Config ↓](#configuration)**
-
-</td>
-<td width="33%" valign="top">
-
-### Tier 3 — + NemoClaw
-
-Add NemoClaw for sandboxed execution via OpenShell and privacy-routed local inference. Agent actions run in an isolated environment — no code leaves your machine.
-
-**→ [Configuration ↓](#configuration)**
-
-</td>
-</tr>
-</table>
-
-| Capability | Tier 1 — Any Agent | Tier 2 — OpenClaw | Tier 3 — NemoClaw |
-|---|:---:|:---:|:---:|
-| SKILL.md project context | ✓ | ✓ | ✓ |
-| Structured JSON logging | ✓ | ✓ | ✓ |
-| Dev server watching + auto-debug | — | ✓ | ✓ |
-| Agent skills (deploy, scaffold, test) | read | read + auto-run | read + auto-run |
-| Model routing (local + frontier) | — | ✓ | ✓ |
-| Sandboxed execution via OpenShell | — | — | ✓ |
-| Privacy-routed local inference | — | — | ✓ |
+| Agent | How it picks up SerpentStack context |
+|---|---|
+| **Claude Code** | Reads `.skills/` automatically via CLAUDE.md, plus `.cursorrules` |
+| **Cursor** | Reads `.cursorrules` automatically; point it at `.skills/` for deeper context |
+| **GitHub Copilot** | Reads `.github/copilot-instructions.md` automatically |
+| **Any other agent** | Point it at `.skills/PROJECT.md` — it links to everything else |
 
 ---
 
 ## Quick Start
 
-<a name="tier-1"></a>
-
 **Prerequisites:** Python 3.12+, Node 22+, Docker, [uv](https://docs.astral.sh/uv/)
 
 ```bash
 # Clone the repo
-git clone https://github.com/Benja-Pauls/ClawStack.git
-cd ClawStack
+git clone https://github.com/Benja-Pauls/SerpentStack.git
+cd SerpentStack
 
-# Interactive setup — configures project name, cloud, DB, auth, and agent tier
+# Interactive setup — configures project name, cloud, DB, auth
 make init
 
 # Install Python (uv) and Node (npm) dependencies
 make setup
 
-# Start Postgres + backend + frontend with hot reload
+# Start Postgres + Redis + backend + frontend with hot reload
 make dev
 ```
 
@@ -138,29 +100,10 @@ Your agent already knows the project. Try: _Watch the dev servers and tell me if
 
 **Ready to build?** Follow the [Build Your First Feature](docs/tutorial.md) tutorial to add a complete Notes resource (model → migration → API → frontend) in ~15 minutes.
 
-#### Adding OpenClaw (Tier 2)
-
-<a name="tier-2"></a>
-
-Install OpenClaw, then start the TUI alongside your dev servers:
-
-```bash
-# In a separate terminal
-openclaw tui
-```
-
-The TUI tails both log streams and hands control to the skills in `.skills/`. See [Skills ↓](#skills) for what's included and how to write your own.
-
-#### Adding NemoClaw (Tier 3)
-
-<a name="tier-3"></a>
-
-Install NemoClaw and the config in `.nemoclaw/` activates automatically. See [Configuration ↓](#configuration) for model routing and inference options.
-
 ## What's in the Box
 
 ```
-clawstack/
+serpentstack/
 ├── backend/                # FastAPI + Python 3.12 (uv)
 │   ├── app/
 │   │   ├── main.py         # App factory — create_app()
@@ -186,9 +129,7 @@ clawstack/
 │   ├── modules/            # networking, ecr, rds, app-runner
 │   └── environments/       # dev, staging, prod configs
 ├── scripts/                # CLI tools (init.py, deploy.sh, deploy-init.sh)
-├── .skills/                # Agent context files + action skills
-├── .openclaw/              # OpenClaw model routing config
-├── .nemoclaw/              # NemoClaw sandbox + inference config
+├── .skills/                # Agent context files + action skills (any agent)
 ├── docs/                   # Tutorial and guides
 ├── .github/workflows/      # CI + CD pipelines
 ├── docker-compose.yml
@@ -198,25 +139,26 @@ clawstack/
 
 ## Skills
 
-Skills are markdown instruction files that tell your agent _how_ to perform tasks in your project — specific file paths, commands, and decision trees. They live in `.skills/` alongside the context files, and any agent can read them. OpenClaw auto-discovers them; without it, point your agent at the skill file and it'll follow the instructions.
+Skills are markdown instruction files that tell your agent _how_ to perform tasks in your project — specific file paths, commands, and decision trees. They live in `.skills/` alongside the context files. Point your agent at any skill file and it'll follow the instructions.
 
 | Skill | Description |
 |---|---|
 | `dev-server` | Start backend + frontend, tail log streams, auto-detect and fix errors |
 | `deploy` | Build Docker images, push to ECR, run Terraform, verify health checks |
 | `scaffold` | Generate boilerplate for new API endpoints and frontend pages with type safety |
+| `auth` | Understand auth architecture, protect routes, swap to Clerk/Auth0 |
 | `db-migrate` | Create Alembic migrations, run them, manage seed data |
 | `test` | Run pytest/vitest, interpret failures, suggest and apply fixes |
 | `git-workflow` | Feature branches, conventional commits, PR creation via `gh` |
-| `find-skills` | Discover and install community skills from [ClawHub](https://clawhub.ai) |
+| `find-skills` | Discover community skills and create new ones for additional capabilities |
 
 **Writing your own skills:** A skill is just a `SKILL.md` file in a new subdirectory of `.skills/`. Write it as actionable instructions — specific commands, real file paths, decision logic — not as documentation. The [CONTRIBUTING guide](CONTRIBUTING.md#agent-skills) has the full format.
 
-**Community skills:** [ClawHub](https://clawhub.ai) hosts 13,000+ community-built skills — your agent can search and install them via the `find-skills` skill. For curated picks, see [Awesome OpenClaw Skills](https://github.com/VoltAgent/awesome-openclaw-skills) or [OpenClaw Master Skills](https://github.com/LeoYeAI/openclaw-master-skills). Share ClawStack-specific skills in [GitHub Discussions → Skills](https://github.com/Benja-Pauls/ClawStack/discussions/categories/skills).
+**Share your skills:** Created a useful skill? Share it in [GitHub Discussions](https://github.com/Benja-Pauls/SerpentStack/discussions/categories/skills) or open a PR to add it to the template.
 
 ## Deploy to AWS
 
-ClawStack includes Terraform modules for AWS App Runner, RDS (Postgres), ECR, and VPC networking. The `scripts/deploy.sh` script handles the full workflow: ECR auth, Docker build, image push, and `terraform apply`.
+SerpentStack includes Terraform modules for AWS App Runner, RDS (Postgres), ECR, and VPC networking. The `scripts/deploy.sh` script handles the full workflow: ECR auth, Docker build, image push, and `terraform apply`.
 
 ```bash
 # One-time: bootstrap Terraform state (S3 bucket + DynamoDB lock table)
@@ -232,47 +174,27 @@ make deploy env=prod
 
 For staging and prod, Terraform shows a plan for review before applying. Dev environments auto-approve.
 
-## Configuration
+> **Other cloud providers:** The application is standard Docker containers — it runs anywhere containers run. The AWS Terraform modules in `infra/` are a reference implementation. We'd welcome community-contributed Terraform modules for GCP (Cloud Run), Azure (Container Apps), or other platforms. See [CONTRIBUTING](CONTRIBUTING.md) if you're interested.
 
-Model routing is configured in `.openclaw/openclaw.json`. The default model handles fast coding tasks locally; the fallback sends to a frontier model when the primary is unavailable. Named agents (like `planning`) can override the default with a stronger model.
+## Agent Integrations
 
-```json
-{
-  "agents": {
-    "defaults": {
-      "model": {
-        "primary": "ollama/codestral",
-        "fallbacks": ["anthropic/claude-opus-4-6"]
-      }
-    },
-    "list": [
-      {
-        "id": "planning",
-        "name": "Planning Agent",
-        "model": {
-          "primary": "anthropic/claude-opus-4-6"
-        }
-      }
-    ]
-  },
-  "skills": {
-    "load": {
-      "extraDirs": [".skills"],
-      "watch": true
-    }
-  }
-}
-```
+SerpentStack works out of the box with any agent that can read files. Config files are included for popular tools:
 
-To use cloud-only (no local models), change `primary` to your preferred cloud model and remove `fallbacks`. To swap local models, replace `codestral` with `qwen2.5-coder`, `deepseek-coder-v2`, or any Ollama-compatible model. The `skills.load.watch` option enables hot-reloading when you edit skill files.
+| File | Agent | What it provides |
+|---|---|---|
+| `.skills/` | Any agent | Project context, action skills, and patterns |
+| `.cursorrules` | Cursor | Architecture, conventions, commands |
+| `.github/copilot-instructions.md` | GitHub Copilot | Same conventions, "Adding a New Endpoint" checklist |
 
 ## Customize
 
 **Rename the project.** Run `make init` to set your project name, which updates `.env`, Terraform variables, and Docker image names.
 
-**Swap the auth provider.** Set `AUTH_PROVIDER` in `.env` to `custom`, `clerk`, `auth0`, or `none`. The custom JWT provider works out of the box; Clerk and Auth0 have stub implementations with inline instructions in `backend/app/routes/auth.py`.
+**Swap the auth provider.** The template ships with working local JWT auth (register, login, bcrypt passwords). To swap to Clerk, Auth0, or your own SSO, follow the `auth` skill in `.skills/auth/SKILL.md` — you only need to replace one function (`get_current_user`), and all protected routes keep working.
 
 **Adjust Terraform for your AWS account.** Edit `infra/environments/{env}/main.tf` to change instance sizes, regions, or remove modules you don't need (e.g., drop the `rds` module if you already have a database).
+
+**Swap the UI component library.** The template pre-configures [shadcn/ui](https://ui.shadcn.com) because it copies component source into your project rather than adding a runtime dependency — no lock-in, no bundle impact until you use it. To use a different library (Material UI, Ark UI, your internal design system), delete `frontend/components.json` and the `ui` Makefile target, then install your preferred library normally. The rest of the frontend (React Query, Router, Tailwind) is unaffected.
 
 **Modify skills.** Skills are plain markdown — edit any file in `.skills/` to match your workflow, or create new ones by adding a `SKILL.md` in a new subdirectory.
 
@@ -285,17 +207,21 @@ These are deliberate choices, not gaps. See [FAQ](docs/faq.md) for full rational
 | **Async SQLAlchemy** | AI agent apps multiplex long-running LLM calls (2-30s). Async handles thousands of concurrent connections vs. ~40 with sync threadpool. |
 | **Testcontainers (real Postgres)** | UUID columns, `ON CONFLICT`, JSONB operators don't exist in SQLite. Real Postgres in CI catches real bugs. |
 | **asyncpg driver** | Purpose-built async C driver — faster than psycopg async mode, fewer edge cases with SQLAlchemy async engine. |
-| **No component library** | Opinionated choice. Tailwind + clean structure included; `npx shadcn@latest init` takes 5 minutes when you're ready. |
+| **shadcn/ui (pre-configured, zero components installed)** | shadcn/ui copies component source into your project — it's not a runtime dependency. The template ships the config (`components.json`) and a `make ui component=X` target so agents can add components on demand. No components are pre-installed; delete `components.json` to remove it entirely. See [Customize ↓](#customize) to swap UI libraries. |
 | **AWS App Runner** | Zero-config auto-scaling, TLS, health checks. Swap to ECS/Fargate Terraform module for GPU/sidecar needs. |
-| **Rate limiting (in-memory)** | Works single-instance out of the box. Point at Redis for multi-instance production. |
+| **Rate limiting (configurable storage)** | Uses in-memory storage for local dev, Redis for production. Set `RATE_LIMIT_STORAGE_URI` to switch backends. |
 | **`openapi-typescript`** | Auto-generates frontend types from FastAPI's OpenAPI spec via `make types`. No manual schema mirroring. |
 | **Domain exceptions in services** | Services return `None`/raise domain errors, routes translate to HTTP. Services are reusable in CLI tools, workers, event handlers. |
 
 ## Contributing
 
-Contributions are welcome. Each skill in `.skills/` is independently improvable — if you find a better error-detection pattern or a missing edge case, open a PR for just that skill.
+Contributions are welcome — especially:
 
-For bugs and feature requests, [open an issue](https://github.com/Benja-Pauls/ClawStack/issues).
+- **Skills:** Each skill in `.skills/` is independently improvable. Better error-detection patterns, missing edge cases, or entirely new skills.
+- **Cloud providers:** Terraform modules for GCP, Azure, or other platforms in `infra/`. The AWS modules serve as a reference.
+- **Agent integrations:** Config files for additional AI coding agents.
+
+For bugs and feature requests, [open an issue](https://github.com/Benja-Pauls/SerpentStack/issues).
 
 ## License
 

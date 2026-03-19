@@ -2,13 +2,9 @@
 
 ## General
 
-**Do I need OpenClaw to use this?**
+**Do I need a specific AI agent to use this?**
 
-No. The `.skills/` context files are plain markdown that works with Claude Code, Cursor, Copilot, or any agent that can read files. OpenClaw adds persistent automation (dev server watching, one-command deploy skills) but isn't required.
-
-**Do I need NemoClaw?**
-
-No. NemoClaw is optional and adds sandboxed execution via OpenShell and privacy-routed local inference via Nemotron models. The config in `.nemoclaw/` activates when NemoClaw is installed.
+No. The `.skills/` context files are plain markdown that works with Claude Code, Cursor, Copilot, or any agent that can read files. No specific agent is required — any tool that can read markdown files will pick up the project context.
 
 **Can I use a different database or cloud provider?**
 
@@ -22,7 +18,7 @@ Follow the [Build Your First Feature](tutorial.md) tutorial — it walks through
 
 **Why async SQLAlchemy instead of sync?**
 
-ClawStack is designed for AI agent applications where LLM API calls block for 2-30+ seconds. With sync SQLAlchemy, each concurrent request occupies a thread — FastAPI's default threadpool of ~40 threads becomes the concurrency ceiling. Async SQLAlchemy lets the event loop handle thousands of concurrent connections on a single process, which is critical for apps that multiplex long-running inference calls alongside normal CRUD.
+SerpentStack is designed for AI agent applications where LLM API calls block for 2-30+ seconds. With sync SQLAlchemy, each concurrent request occupies a thread — FastAPI's default threadpool of ~40 threads becomes the concurrency ceiling. Async SQLAlchemy lets the event loop handle thousands of concurrent connections on a single process, which is critical for apps that multiplex long-running inference calls alongside normal CRUD.
 
 **Why PostgreSQL instead of SQLite for tests?**
 
@@ -40,10 +36,14 @@ uv is written in Rust and resolves + installs dependencies in under a second —
 
 App Runner handles auto-scaling, TLS, health checks, and deploys with zero infrastructure management. For rapid prototyping through to moderate production loads, it's the fastest path from Docker image to running service. Teams that need custom networking, sidecar containers, or GPU instances can swap the Terraform module for ECS/Fargate without changing the application code.
 
-**Why no component library (shadcn/ui, Radix)?**
+**Why shadcn/ui instead of Material UI, Chakra, etc.?**
 
-Deliberate minimalism. A component library is the highest-leverage addition for rapid UI development, but it's also the most opinionated choice in a template. We provide Tailwind v4 and a clean component structure. Adding shadcn/ui is a 5-minute `npx shadcn@latest init` away, and we'd rather you choose the library that fits your design system than force one.
+shadcn/ui is the only component library that doesn't add a runtime dependency — it copies component source code into your project, so you own the files and can modify them freely. The template ships only the config file (`components.json`) and a `make ui component=X` Makefile target; no components are pre-installed, so there's zero bundle impact until you use one. To swap it for a different library, delete `components.json` and install your preferred alternative — the rest of the frontend (React Query, Router, Tailwind) is unaffected. See the [Customize section](../README.md#customize) in the README.
 
-**Why rate limiting with in-memory storage?**
+**Why built-in JWT auth instead of Clerk/Auth0?**
 
-The default `memory://` storage works for single-instance deployments. For multi-instance production, configure `RATE_LIMIT_STORAGE_URI` to point at Redis (e.g., `redis://localhost:6379`). We ship with in-memory so the template works without Redis out of the box.
+The built-in auth (register, login, bcrypt, JWT) works with zero external accounts or API keys. For prototyping, this means `make dev` gives you working auth immediately — no Clerk dashboard, no Auth0 tenant, no OAuth redirect configuration. When you're ready to swap, the `auth` skill in `.skills/auth/SKILL.md` walks through replacing one function (`get_current_user`) to use any external provider. All protected routes keep working because they depend on the `UserInfo` interface, not the implementation.
+
+**Why in-memory rate limiting by default?**
+
+The default `memory://` storage lets the template work without Redis for simple local development. In docker-compose (and production), `RATE_LIMIT_STORAGE_URI` is set to `redis://redis:6379` automatically, so rate limits survive restarts and work across multiple instances. You can configure any SlowAPI-compatible storage backend via that env var.

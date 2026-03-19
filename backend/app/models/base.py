@@ -59,6 +59,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency that provides an async database session.
 
     Yields a session and ensures it is closed after the request.
+    If an exception occurs after flush() but before commit(),
+    the session is explicitly rolled back to prevent ambiguous state.
 
     Usage:
         @router.get("/items")
@@ -67,7 +69,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     session_factory = get_session_factory()
     async with session_factory() as db:
-        yield db
+        try:
+            yield db
+        except Exception:
+            await db.rollback()
+            raise
 
 
 class Base(DeclarativeBase):
