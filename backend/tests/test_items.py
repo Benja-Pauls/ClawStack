@@ -18,6 +18,7 @@ async def _register(client: AsyncClient, email: str) -> tuple[str, str]:
         "/api/v1/auth/register",
         json={"email": email, "password": "securepass123"},
     )
+    assert resp.status_code == 201, f"Registration failed: {resp.status_code} {resp.json()}"
     data = resp.json()
     return data["access_token"], data["user"]["id"]
 
