@@ -51,8 +51,18 @@ def get_engine() -> AsyncEngine:
 
 @lru_cache(maxsize=1)
 def get_session_factory() -> async_sessionmaker[AsyncSession]:
-    """Create and cache the async session factory bound to the engine."""
-    return async_sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
+    """Create and cache the async session factory bound to the engine.
+
+    expire_on_commit=False is required for async SQLAlchemy: after commit(),
+    accessing object attributes (e.g. user.id) would otherwise trigger implicit
+    lazy loads that fail with MissingGreenlet. See SQLAlchemy asyncio docs.
+    """
+    return async_sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=get_engine(),
+        expire_on_commit=False,
+    )
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
