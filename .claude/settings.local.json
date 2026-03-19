@@ -32,7 +32,9 @@
       "Bash(uv lock:*)",
       "Bash(npx vitest:*)",
       "Bash(npx eslint:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(make types:*)",
+      "Bash(npx openapi-typescript:*)"
     ]
   }
 }
