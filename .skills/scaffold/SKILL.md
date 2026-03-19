@@ -101,7 +101,7 @@ class {Name}Service:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def create(self, data: {Name}Create, *, user_id: uuid.UUID | None = None) -> {Name}:
+    async def create(self, data: {Name}Create, *, user_id: UUID | None = None) -> {Name}:
         item = {Name}(**data.model_dump(), user_id=user_id)
         self.db.add(item)
         await self.db.flush()
@@ -118,10 +118,19 @@ class {Name}Service:
         result = await self.db.execute(select({Name}).offset(skip).limit(limit))
         return list(result.scalars().all()), total or 0
 
-    async def update(self, {name}_id: UUID, data: {Name}Update) -> {Name} | None:
+    async def update(self, {name}_id: UUID, data: {Name}Update, *, user_id: UUID) -> object:
+        """Update with ownership check.
+
+        Returns:
+            {Name} — updated successfully
+            None   — not found
+            False  — exists but owned by a different user
+        """
         item = await self.get({name}_id)
         if item is None:
             return None
+        if item.user_id is not None and item.user_id != user_id:
+            return False
         for key, value in data.model_dump(exclude_unset=True).items():
             setattr(item, key, value)
         await self.db.flush()
@@ -199,14 +208,17 @@ async def read({name}_id: UUID, service: {Name}Service = Depends(get_service)):
 async def update(
     {name}_id: UUID,
     data: {Name}Update,
+    user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     service: {Name}Service = Depends(get_service),
 ):
-    item = await service.update({name}_id, data)
-    if item is None:
+    result = await service.update({name}_id, data, user_id=UUID(user.user_id))
+    if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="{Name} not found")
+    if result is False:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only update your own {name}s")
     await db.commit()
-    return item
+    return result
 
 
 @router.delete("/{{{name}_id}}", status_code=204)

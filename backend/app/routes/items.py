@@ -8,7 +8,7 @@ This module shows the recommended patterns for building API endpoints:
 - Proper HTTP status codes and error handling
 - Domain exception translation (services never raise HTTPException)
 - Route-level transaction control (routes commit, services only flush)
-- Protected routes via Depends(get_current_user) (see delete_item)
+- Protected routes via Depends(get_current_user) (see update_item, delete_item)
 """
 
 from __future__ import annotations
@@ -103,19 +103,25 @@ async def get_item(
 async def update_item(
     item_id: uuid.UUID,
     payload: ItemUpdate,
+    user: UserInfo = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     service: ItemService = Depends(get_item_service),
 ) -> ItemResponse:
-    """Update an existing item."""
-    item = await service.update_item(item_id, payload)
-    if item is None:
+    """Update an existing item. Requires authentication and ownership."""
+    result = await service.update_item(item_id, payload, user_id=uuid.UUID(user.user_id))
+    if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Item {item_id} not found",
         )
+    if result is False:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only update your own items",
+        )
     await db.commit()
-    logger.info("item_updated", item_id=str(item_id))
-    return ItemResponse.model_validate(item)
+    logger.info("item_updated", item_id=str(item_id), updated_by=user.user_id)
+    return ItemResponse.model_validate(result)
 
 
 @router.delete(

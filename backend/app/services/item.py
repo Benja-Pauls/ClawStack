@@ -65,11 +65,22 @@ class ItemService:
         await self.db.refresh(item)
         return item
 
-    async def update_item(self, item_id: uuid.UUID, data: ItemUpdate) -> Item | None:
-        """Update an existing item. Returns None if not found."""
+    async def update_item(
+        self, item_id: uuid.UUID, data: ItemUpdate, *, user_id: uuid.UUID
+    ) -> Item | None | bool:
+        """Update an existing item with ownership check.
+
+        Returns:
+            Item  — updated successfully
+            None  — item not found
+            False — item exists but is owned by a different user
+        """
         item = await self.get_item(item_id)
         if item is None:
             return None
+
+        if item.user_id is not None and item.user_id != user_id:
+            return False
 
         update_data = data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
