@@ -92,5 +92,10 @@ export async function stackNew(name) {
     `The agent reads ${bold('.skills/')} automatically.`,
   ]);
 
-  printPrompt('Add a Projects resource with CRUD, auth, and ownership');
+  printPrompt([
+    `Read .skills/scaffold/SKILL.md and add a Projects resource with`,
+    `full CRUD, JWT auth, and ownership enforcement. Follow the`,
+    `service/route/test/frontend patterns exactly as the skill`,
+    `describes. Run make verify when done to confirm everything passes.`,
+  ], { hint: 'Try this prompt to verify your skills are working' });
 }

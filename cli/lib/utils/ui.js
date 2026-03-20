@@ -98,17 +98,22 @@ export function printBox(title, lines, { color = GREEN, icon = '\u25B6' } = {}) 
 
 /**
  * Print a copyable prompt block that the user can paste into their IDE agent.
+ * Accepts a single string or an array of lines for multi-line prompts.
  */
-export function printPrompt(prompt) {
-  const width = Math.min(Math.max(stripAnsi(prompt).length + 6, 50), 80);
+export function printPrompt(promptLines, { hint = 'Copy this prompt and paste it into your IDE agent' } = {}) {
+  const lines = Array.isArray(promptLines) ? promptLines : [promptLines];
+  const maxLineLen = Math.max(...lines.map(l => stripAnsi(l).length));
+  const width = Math.min(Math.max(maxLineLen + 6, 50), 90);
   const innerWidth = width - 2;
-  const pad = Math.max(0, innerWidth - stripAnsi(prompt).length - 2);
 
   console.log();
   console.log(`  ${DIM}\u250C${'─'.repeat(innerWidth)}\u2510${RESET}`);
-  console.log(`  ${DIM}\u2502${RESET} ${BOLD}${CYAN}${prompt}${RESET}${' '.repeat(pad)}${DIM}\u2502${RESET}`);
+  for (const line of lines) {
+    const pad = Math.max(0, innerWidth - stripAnsi(line).length - 2);
+    console.log(`  ${DIM}\u2502${RESET} ${CYAN}${line}${RESET}${' '.repeat(pad)}${DIM}\u2502${RESET}`);
+  }
   console.log(`  ${DIM}\u2514${'─'.repeat(innerWidth)}\u2518${RESET}`);
-  console.log(`  ${DIM}\u2191 Copy this prompt and paste it into your IDE agent${RESET}`);
+  console.log(`  ${DIM}\u2191 ${hint}${RESET}`);
   console.log();
 }
 

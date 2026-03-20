@@ -85,5 +85,14 @@ export async function skillsInit({ force = false } = {}) {
     `   ${dim('$')} ${bold('serpentstack skills persistent --create')}`,
   ]);
 
-  printPrompt('Generate project-specific skills for my codebase');
+  printPrompt([
+    `Read .skills/generate-skills/SKILL.md and follow its instructions`,
+    `to generate project-specific skills for this codebase. Interview me`,
+    `about my architecture decisions — how I handle transactions, auth,`,
+    `error patterns, testing strategy, and deployment. Ask about the`,
+    `business domain too: what this app does, key user flows, and where`,
+    `agents are most likely to make mistakes. Write each skill as a`,
+    `SKILL.md with complete templates an agent can copy, not vague`,
+    `descriptions. Reference SKILL-AUTHORING.md for the format.`,
+  ]);
 }
