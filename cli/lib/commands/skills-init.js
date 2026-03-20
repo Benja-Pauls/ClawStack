@@ -95,10 +95,11 @@ export async function skillsInit({ force = false } = {}) {
     `descriptions. Reference SKILL-AUTHORING.md for the format.`,
   ]);
 
-  printBox('After generating skills, set up the persistent agent', [
+  printBox('After generating skills, try setting up a persistent agent too', [
     `${dim('$')} ${bold('serpentstack skills persistent')}  ${dim('# guided setup + start')}`,
     '',
-    `${dim('The persistent agent watches your dev server, catches errors,')}`,
-    `${dim('runs tests on a schedule, and keeps skills up to date.')}`,
+    `${dim('A background agent that watches your dev server, catches')}`,
+    `${dim('errors, runs tests, and keeps your skills up to date.')}`,
+    `${dim('Customize its behavior by editing the files in .openclaw/.')}`,
   ]);
 }
