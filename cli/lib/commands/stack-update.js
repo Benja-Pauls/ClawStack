@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { downloadFile } from '../utils/github.js';
 import { safeWrite } from '../utils/fs-helpers.js';
-import { info, success, warn, error, spinner, bold, dim } from '../utils/ui.js';
+import { info, success, warn, error, spinner, bold, dim, green, fileStatus } from '../utils/ui.js';
 
 // Template-level files that may be updated upstream
 const TEMPLATE_FILES = [
@@ -20,6 +20,7 @@ export async function stackUpdate({ force = false } = {}) {
     process.exit(1);
   }
 
+  console.log();
   info(`Checking for template updates in ${bold(process.cwd())}`);
   console.log();
 
@@ -36,18 +37,18 @@ export async function stackUpdate({ force = false } = {}) {
         if (existsSync(destPath)) {
           const local = readFileSync(destPath, 'utf8');
           if (local === content) {
-            logs.push(`  \u2022 ${dim(`${repoPath} (up to date)`)}`);
+            logs.push(fileStatus(repoPath, 'unchanged'));
             results.unchanged++;
             continue;
           }
         }
 
         const status = safeWrite(destPath, content, { force: true });
-        logs.push(`  \u21BB ${repoPath} (${status})`);
+        logs.push(fileStatus(repoPath, status === 'created' ? 'created' : 'overwritten'));
         results.updated++;
       } catch (err) {
         results.failed++;
-        logs.push(`  \u2717 ${repoPath} — ${err.message}`);
+        logs.push(fileStatus(repoPath, 'failed', err.message));
       }
     }
   } finally {
@@ -57,8 +58,11 @@ export async function stackUpdate({ force = false } = {}) {
   for (const log of logs) console.log(log);
   console.log();
 
-  if (results.updated > 0) success(`${results.updated} file(s) updated`);
-  if (results.unchanged > 0) info(`${results.unchanged} file(s) already up to date`);
-  if (results.failed > 0) error(`${results.failed} file(s) failed`);
+  // Summary line
+  const parts = [];
+  if (results.updated > 0) parts.push(green(`${results.updated} updated`));
+  if (results.unchanged > 0) parts.push(`${results.unchanged} up to date`);
+  if (results.failed > 0) parts.push(`${results.failed} failed`);
+  console.log(`  ${parts.join(dim(' \u2022 '))}`);
   console.log();
 }

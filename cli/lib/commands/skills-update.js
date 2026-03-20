@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { downloadFile } from '../utils/github.js';
 import { safeWrite } from '../utils/fs-helpers.js';
-import { info, success, warn, error, spinner, bold, dim } from '../utils/ui.js';
+import { info, success, warn, error, spinner, bold, dim, green, fileStatus } from '../utils/ui.js';
 
 const MANIFEST = [
   '.skills/find-skills/SKILL.md',
@@ -19,6 +19,7 @@ const MANIFEST = [
 const CUSTOMIZABLE = new Set(['.openclaw/SOUL.md', '.openclaw/HEARTBEAT.md', '.openclaw/AGENTS.md']);
 
 export async function skillsUpdate({ force = false, all = false } = {}) {
+  console.log();
   info(`Updating SerpentStack skills in ${bold(process.cwd())}`);
   console.log();
 
@@ -32,7 +33,7 @@ export async function skillsUpdate({ force = false, all = false } = {}) {
 
       // By default, only update files that already exist locally
       if (!existsSync(destPath) && !all) {
-        logs.push(`  \u2022 ${dim(`${repoPath} (not installed — use ${bold('--all')} to add)`)}`);
+        logs.push(fileStatus(repoPath, 'skipped', `not installed \u2014 use ${bold('--all')} to add`));
         results.skipped++;
         continue;
       }
@@ -44,25 +45,25 @@ export async function skillsUpdate({ force = false, all = false } = {}) {
         if (existsSync(destPath)) {
           const local = readFileSync(destPath, 'utf8');
           if (local === content) {
-            logs.push(`  \u2022 ${dim(`${repoPath} (up to date)`)}`);
+            logs.push(fileStatus(repoPath, 'unchanged'));
             results.unchanged++;
             continue;
           }
 
           // Warn about customizable files
           if (CUSTOMIZABLE.has(repoPath) && !force) {
-            logs.push(`  ! ${repoPath} (has local changes — use ${bold('--force')} to overwrite)`);
+            logs.push(fileStatus(repoPath, 'skipped', `local changes \u2014 use ${bold('--force')} to overwrite`));
             results.skipped++;
             continue;
           }
         }
 
         const status = safeWrite(destPath, content, { force: true });
-        logs.push(`  \u21BB ${repoPath} (${status})`);
+        logs.push(fileStatus(repoPath, status === 'created' ? 'created' : 'overwritten'));
         results.updated++;
       } catch (err) {
         results.failed++;
-        logs.push(`  \u2717 ${repoPath} — ${err.message}`);
+        logs.push(fileStatus(repoPath, 'failed', err.message));
       }
     }
   } finally {
@@ -72,9 +73,12 @@ export async function skillsUpdate({ force = false, all = false } = {}) {
   for (const log of logs) console.log(log);
   console.log();
 
-  if (results.updated > 0) success(`${results.updated} file(s) updated`);
-  if (results.unchanged > 0) info(`${results.unchanged} file(s) already up to date`);
-  if (results.skipped > 0) warn(`${results.skipped} file(s) skipped`);
-  if (results.failed > 0) error(`${results.failed} file(s) failed`);
+  // Summary line
+  const parts = [];
+  if (results.updated > 0) parts.push(green(`${results.updated} updated`));
+  if (results.unchanged > 0) parts.push(`${results.unchanged} up to date`);
+  if (results.skipped > 0) parts.push(`${results.skipped} skipped`);
+  if (results.failed > 0) parts.push(`${results.failed} failed`);
+  console.log(`  ${parts.join(dim(' \u2022 '))}`);
   console.log();
 }

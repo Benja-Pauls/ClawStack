@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { cloneRepo, checkGit } from '../utils/github.js';
-import { info, success, error, spinner, bold } from '../utils/ui.js';
+import { info, success, error, spinner, bold, dim, green, printBox, printPrompt } from '../utils/ui.js';
 
 const CLEANUP_PATHS = [
   'cli',
@@ -41,11 +41,13 @@ export async function stackNew(name) {
     process.exit(1);
   }
 
+  console.log();
+
   // Clone
   const spin = spinner(`Cloning SerpentStack template into ${name}/...`);
   try {
     await cloneRepo(dest);
-    spin.stop(success(`Template cloned into ${bold(name)}/`));
+    spin.stop(success(`Template cloned into ${green(name)}/`));
   } catch (err) {
     spin.stop();
     error(err.message);
@@ -69,12 +71,26 @@ export async function stackNew(name) {
   });
   success('Initialized fresh git repository');
 
-  // Next steps
+  // What was created
   console.log();
-  info(bold('Next steps:'));
-  console.log(`  cd ${name}`);
-  console.log(`  make init      ${bold('#')} interactive project setup`);
-  console.log(`  make setup     ${bold('#')} install dependencies`);
-  console.log(`  make dev       ${bold('#')} start dev server`);
+  console.log(`  ${dim('Includes:')}`);
+  console.log(`  ${green('\u2713')} FastAPI backend with async SQLAlchemy + JWT auth`);
+  console.log(`  ${green('\u2713')} React frontend with TypeScript + shadcn/ui`);
+  console.log(`  ${green('\u2713')} PostgreSQL + Redis via Docker Compose`);
+  console.log(`  ${green('\u2713')} Terraform infrastructure (AWS App Runner)`);
+  console.log(`  ${green('\u2713')} 10 project-specific Agent Skills in .skills/`);
+  console.log(`  ${green('\u2713')} OpenClaw persistent agent configs in .openclaw/`);
   console.log();
+
+  printBox('Get started', [
+    `${dim('$')} ${bold(`cd ${name}`)}`,
+    `${dim('$')} ${bold('make init')}      ${dim('# interactive project setup')}`,
+    `${dim('$')} ${bold('make setup')}     ${dim('# install dependencies')}`,
+    `${dim('$')} ${bold('make dev')}       ${dim('# start dev server')}`,
+    '',
+    `Then open your IDE agent and start building.`,
+    `The agent reads ${bold('.skills/')} automatically.`,
+  ]);
+
+  printPrompt('Add a Projects resource with CRUD, auth, and ownership');
 }

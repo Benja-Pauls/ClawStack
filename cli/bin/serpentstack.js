@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { error, bold, getVersion, printHeader } from '../lib/utils/ui.js';
+import { error, bold, dim, green, cyan, getVersion, printHeader } from '../lib/utils/ui.js';
 
 function parseFlags(args) {
   const flags = {};
@@ -20,22 +20,30 @@ function showHelp() {
   printHeader();
   console.log(`  ${bold('Usage:')} serpentstack <command> [options]
 
-  ${bold('Stack commands')} (new projects):
-    stack new <name>              Scaffold a new project from the template
-    stack update                  Update template-level files to latest
+  ${bold(green('Stack commands'))} ${dim('(new projects)')}
+    ${cyan('stack new')} <name>              Scaffold a new project from the template
+    ${cyan('stack update')}                  Update template-level files to latest
 
-  ${bold('Skills commands')} (any project):
-    skills init                   Download base skills + persistent agent configs
-    skills update                 Update base skills to latest versions
-    skills persistent --create    Set up OpenClaw workspace for your project
-    skills persistent --start     Install OpenClaw (if needed) and start agent
-    skills persistent --stop      Stop the background agent
+  ${bold(green('Skills commands'))} ${dim('(any project)')}
+    ${cyan('skills init')}                   Download base skills + persistent agent configs
+    ${cyan('skills update')}                 Update base skills to latest versions
+    ${cyan('skills persistent')} --create    Set up OpenClaw workspace for your project
+    ${cyan('skills persistent')} --start     Install OpenClaw (if needed) and start agent
+    ${cyan('skills persistent')} --stop      Stop the background agent
 
   ${bold('Options:')}
     --force                       Overwrite existing files
     --all                         Include new files in updates (skills update)
     --version                     Show version
     --help                        Show this help
+
+  ${dim('Examples:')}
+    ${dim('$')} serpentstack stack new my-saas-app
+    ${dim('$')} serpentstack skills init
+    ${dim('$')} serpentstack skills init --force
+    ${dim('$')} serpentstack skills persistent --start
+
+  ${dim('Docs: https://github.com/Benja-Pauls/SerpentStack')}
 `);
 }
 
@@ -85,8 +93,8 @@ async function main() {
       process.exit(1);
     }
   } else {
-    error(`Unknown command: ${noun}`);
-    showHelp();
+    error(`Unknown command: ${bold(noun)}`);
+    console.log(`\n  Run ${bold('serpentstack --help')} to see available commands.\n`);
     process.exit(1);
   }
 }
