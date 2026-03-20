@@ -55,6 +55,17 @@ You are working on SerpentStack, a fullstack template: FastAPI + React + Postgre
 6. Add tests in `backend/tests/`
 7. Run `make types` to update frontend TypeScript types
 
+## Agent Skills
+
+This project includes project-specific Agent Skills in `.skills/`. Key skills:
+- `scaffold` — full end-to-end resource generation following project conventions
+- `auth` — UserInfo contract, get_current_user, provider swapping
+- `test` — testcontainers, savepoint isolation, asyncio_mode = "auto"
+- `generate-skills` — interviews developers to produce skills for any codebase
+- `model-routing` — delegate code generation to on-device models (Ollama) for cost savings
+
+Persistent agent configs live in `.openclaw/` (SOUL.md, HEARTBEAT.md, AGENTS.md).
+
 ## Common Commands
 
 ```bash
@@ -67,6 +78,7 @@ make migrate    # Run database migrations
 make seed       # Seed database with sample data
 make worker     # Start ARQ background task worker
 make ui component=X  # Add a shadcn/ui component
+make persistent # Start OpenClaw background agent
 ```
 
 **Always run `make verify` before pushing.** It runs the same checks as CI.

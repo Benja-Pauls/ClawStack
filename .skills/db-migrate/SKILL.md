@@ -1,6 +1,6 @@
 ---
-name: serpentstack-db-migrate
-description: "Manage database schema changes with Alembic in SerpentStack. Use when: creating migrations, adding tables or columns, checking migration status, rolling back."
+name: db-migrate
+description: "Manage database schema changes with Alembic. Use when: creating migrations, adding tables or columns, checking migration status, rolling back, or seeding the database."
 ---
 
 # Database Migrations

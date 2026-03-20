@@ -1,6 +1,6 @@
 ---
-name: serpentstack-scaffold
-description: "Generate boilerplate for new API endpoints and frontend pages in SerpentStack. Use when: adding a new resource, creating CRUD endpoints, wiring up a new frontend page."
+name: scaffold
+description: "Generate boilerplate for new API endpoints and frontend pages following this project's conventions (flush/commit transaction pattern, ownership enforcement, domain returns). Use when: adding a new resource, creating CRUD endpoints, wiring up a new frontend page, or asking 'how do I add a new feature end-to-end.'"
 ---
 
 # Scaffold

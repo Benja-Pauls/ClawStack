@@ -1,6 +1,6 @@
 ---
-name: serpentstack-auth
-description: "Understand and customize authentication in SerpentStack. Use when: adding auth to routes, swapping auth providers (Clerk, Auth0, custom SSO), or debugging auth issues."
+name: auth
+description: "Understand and customize authentication in this project. Use when: adding auth to routes, swapping auth providers (Clerk, Auth0, custom SSO), debugging auth issues, or understanding the UserInfo contract and get_current_user dependency."
 ---
 
 # Auth

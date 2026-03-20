@@ -1,6 +1,6 @@
 ---
-name: serpentstack-test
-description: "Run and interpret tests for SerpentStack backend and frontend. Use when: running test suites, debugging test failures, checking coverage, writing new tests."
+name: test
+description: "Run and interpret tests for backend (pytest + testcontainers with real Postgres) and frontend (vitest). Use when: running test suites, debugging test failures, checking coverage, writing new tests, or understanding the test infrastructure."
 ---
 
 # Test
@@ -67,7 +67,7 @@ When a test fails:
 | `assert 'items' in data` fails | Response shape changed | Check if endpoint returns a wrapper object (`{Name}ListResponse`) |
 | `ConnectionRefusedError` or container timeout | Docker is not running | Start Docker Desktop, then re-run tests |
 | `docker.errors.DockerException` | Docker daemon unreachable | Check `docker ps` works, restart Docker if needed |
-| `RuntimeError: no running event loop` | Missing `@pytest.mark.asyncio` | Add decorator to async test functions |
+| `RuntimeError: no running event loop` | `asyncio_mode` not set or test not `async def` | Verify `asyncio_mode = "auto"` in `pyproject.toml` — do NOT add `@pytest.mark.asyncio` (it's redundant with auto mode) |
 | `MissingGreenlet` / `await` in sync context | Accidentally called sync code in async path | Ensure all DB operations use `await` with `AsyncSession` |
 
 ## Frontend Tests (vitest)

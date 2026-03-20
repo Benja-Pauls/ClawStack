@@ -1,6 +1,6 @@
 ---
-name: serpentstack-git-workflow
-description: "Git conventions for SerpentStack. Use when: creating branches, writing commit messages, opening PRs."
+name: git-workflow
+description: "Git conventions for this project. Use when: creating branches, writing commit messages, opening PRs, or running the pre-push checklist."
 ---
 
 # Git Workflow

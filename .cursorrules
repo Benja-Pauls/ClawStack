@@ -58,8 +58,20 @@ backend/app/config.py   — pydantic-settings configuration
 backend/tests/          — pytest tests with testcontainers
 frontend/src/           — React application
 infra/                  — Terraform modules (AWS)
-.skills/                — Agent context and action skills
+.skills/                — IDE agent skills (Agent Skills standard)
+.openclaw/              — Persistent agent workspace (OpenClaw)
 ```
+
+## Agent Skills
+
+This project includes project-specific Agent Skills in `.skills/`. Key skills:
+- `scaffold` — full end-to-end resource generation following project conventions
+- `auth` — UserInfo contract, get_current_user, provider swapping
+- `test` — testcontainers, savepoint isolation, asyncio_mode = "auto"
+- `generate-skills` — interviews developers to produce skills for any codebase
+- `model-routing` — delegate code generation to on-device models (Ollama) for cost savings
+
+Persistent agent configs live in `.openclaw/` (SOUL.md, HEARTBEAT.md, AGENTS.md).
 
 ## Common Commands
 
@@ -73,6 +85,7 @@ make migrate    # Run database migrations
 make seed       # Seed database with sample data
 make worker     # Start ARQ background task worker
 make ui component=X  # Add a shadcn/ui component
+make persistent # Start OpenClaw background agent
 ```
 
 **Always run `make verify` before pushing.** It runs the same checks as CI.

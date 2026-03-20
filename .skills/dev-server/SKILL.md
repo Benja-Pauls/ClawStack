@@ -1,6 +1,6 @@
 ---
-name: serpentstack-dev-server
-description: "Monitor and auto-fix the SerpentStack development environment. Use when: debugging backend/frontend errors, watching log streams, diagnosing startup failures."
+name: dev-server
+description: "Monitor and auto-fix the development environment. Use when: debugging backend/frontend errors, watching log streams, diagnosing startup failures, or running make dev."
 ---
 
 # Dev Server

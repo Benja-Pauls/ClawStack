@@ -1,4 +1,4 @@
-.PHONY: init dev dev-docker test test-backend test-frontend migrate migrate-new build lint clean setup deploy-init deploy types seed worker ui verify
+.PHONY: init dev dev-docker test test-backend test-frontend migrate migrate-new build lint clean setup deploy-init deploy types seed worker ui verify persistent
 
 init:
 	python3 scripts/init.py
@@ -91,3 +91,16 @@ types:
 	@cd frontend && ./node_modules/.bin/openapi-typescript src/types/openapi.json -o src/types/api.generated.ts
 	@rm -f frontend/src/types/openapi.json
 	@echo "Types written to frontend/src/types/api.generated.ts"
+
+persistent:
+	@echo "── Setting up persistent agent (OpenClaw) ──"
+	@if ! command -v openclaw >/dev/null 2>&1; then \
+		echo "OpenClaw not found. Installing..."; \
+		npm install -g openclaw@latest; \
+	fi
+	@echo "Starting persistent agent with project workspace..."
+	@echo "  SOUL.md:      .openclaw/SOUL.md"
+	@echo "  HEARTBEAT.md: .openclaw/HEARTBEAT.md"
+	@echo "  AGENTS.md:    .openclaw/AGENTS.md"
+	@echo ""
+	openclaw start --workspace .openclaw/

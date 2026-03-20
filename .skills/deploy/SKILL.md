@@ -1,6 +1,6 @@
 ---
-name: serpentstack-deploy
-description: "Build, push, and deploy SerpentStack to AWS using Docker, ECR, and Terraform. Use when: deploying to dev/staging/prod, checking deploy status, rolling back."
+name: deploy
+description: "Build, push, and deploy to AWS using Docker, ECR, and Terraform. Use when: deploying to dev/staging/prod, checking deploy status, rolling back, or running the deploy checklist."
 ---
 
 # Deploy

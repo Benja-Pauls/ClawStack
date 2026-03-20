@@ -1,6 +1,6 @@
 ---
 name: find-skills
-description: "Discover, evaluate, and create skills for your project. Use when: the user needs a capability not covered by built-in skills, wants to find patterns for a specific tool or service, or asks about extending the skills directory."
+description: "Discover, evaluate, and create project-specific skills. Use when: the user needs a capability not covered by built-in skills, wants to find patterns for a specific tool or service, or asks about extending the skills directory. Also use when asking 'how do I add a new skill.'"
 ---
 
 # Find & Create Skills
@@ -13,13 +13,15 @@ Use this when the user asks for something outside the scope of the built-in skil
 
 | Built-in Skill | Covers |
 |---|---|
+| `scaffold` | Generating new API endpoints and frontend pages following project conventions |
+| `auth` | Understanding auth, protecting routes, swapping providers |
+| `test` | Running and interpreting pytest and vitest |
+| `db-migrate` | Alembic migrations, schema changes, seed data |
 | `dev-server` | Starting, monitoring, and auto-fixing the dev environment |
 | `deploy` | Docker build, ECR push, Terraform apply to AWS |
-| `scaffold` | Generating new API endpoints and frontend pages |
-| `auth` | Understanding auth, protecting routes, swapping providers |
-| `db-migrate` | Alembic migrations, schema changes, seed data |
-| `test` | Running and interpreting pytest and vitest |
 | `git-workflow` | Branches, commits, PRs, rebasing |
+| `generate-skills` | Interviewing a developer to produce project-specific skills for any codebase |
+| `model-routing` | Delegating code generation to on-device models (Ollama) to reduce costs |
 
 If the user needs something else — monitoring, Stripe, email, Slack, S3 file uploads, PDF generation, browser automation, etc. — search for a community skill or official docs first before building from scratch.
 

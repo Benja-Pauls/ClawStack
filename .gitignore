@@ -56,6 +56,10 @@ override.tf.json
 *.log
 logs/
 
+# CLI local development
+cli/node_modules/
+
 # Reference material (not part of the template)
 references/
 BRIEF.md
+PRINCIPLES.md

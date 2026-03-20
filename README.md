@@ -11,27 +11,38 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick Start</a> &nbsp;·&nbsp;
-  <a href="#skills">Skills</a> &nbsp;·&nbsp;
-  <a href="#patterns">Patterns</a> &nbsp;·&nbsp;
-  <a href="#commands">Commands</a> &nbsp;·&nbsp;
-  <a href="#deploy">Deploy</a> &nbsp;·&nbsp;
+  <a href="#quick-start">Quick Start</a> &nbsp;&middot;&nbsp;
+  <a href="#project-specific-skills">Skills</a> &nbsp;&middot;&nbsp;
+  <a href="#persistent-agents">Persistent Agents</a> &nbsp;&middot;&nbsp;
+  <a href="#patterns">Patterns</a> &nbsp;&middot;&nbsp;
+  <a href="#commands">Commands</a> &nbsp;&middot;&nbsp;
+  <a href="#deploy">Deploy</a> &nbsp;&middot;&nbsp;
   <a href="#design-decisions">Design Decisions</a>
 </p>
 
 ---
 
-Two kinds of AI agents work on your codebase. **IDE agents** (Cursor, Copilot, Claude Code) write code when you ask. **Persistent agents** run in the background — watching logs, catching errors, keeping documentation current. The problem is neither type knows your conventions. The IDE agent hallucinates file paths and scaffolds patterns that don't match. The persistent agent can't maintain what it doesn't understand.
+Generic skills teach agents how to code. Project-specific skills teach agents how to code **like your team does** — your transaction patterns, your auth conventions, your ownership enforcement, your test infrastructure. There are thousands of generic skills in [marketplaces](https://github.com/anthropics/skills). None of them know your codebase.
 
-SerpentStack solves this with `.skills/` — project context that agents both read *and* maintain. Not static docs a human writes once and forgets. IDE agents read skills to write code that fits your patterns. Persistent agents update skills as your project evolves — new conventions get captured, stale patterns get corrected, and every future IDE session benefits automatically. The skills directory is the shared interface between them.
+SerpentStack is the open-source standard for AI-driven development. It gives your IDE agents project-specific skills so they write code matching your conventions, and configures persistent background agents ([OpenClaw](https://docs.openclaw.ai)) that continuously watch your dev server, catch errors, run tests, and maintain those skills as your project evolves.
 
-No vendor lock-in, no plugins, no special tooling. If your agent can read a file, it can read a skill. Works with Claude Code, Cursor, Copilot, Windsurf, or anything else that reads files.
+**Starting a new project?** `serpentstack stack new` scaffolds a production-ready FastAPI + React + Postgres + Terraform stack with project-specific skills and persistent agent configs already written.
 
-The template itself is a production-ready FastAPI + React + Postgres stack with JWT auth, ownership enforcement, async SQLAlchemy, testcontainers, and Terraform deploy — every decision documented in `.skills/` so both types of agents can reproduce the patterns correctly.
+**Already have a project?** `serpentstack skills init` downloads the base skills and persistent agent configs into your codebase. Then ask your IDE agent to generate project-specific skills tailored to your conventions.
 
-```
-git clone https://github.com/Benja-Pauls/SerpentStack.git && cd SerpentStack
-make init && make setup && make dev
+Skills use the [Agent Skills open standard](https://agentskills.io/home) (Claude Code, Codex, Cursor, Copilot, Gemini CLI). Persistent agents use the [OpenClaw workspace](https://docs.openclaw.ai/concepts/agent-workspace) standard.
+
+```bash
+# New project — full template with skills + persistent agent configs
+npm install -g serpentstack              # requires Node 22+
+serpentstack stack new my-app            # scaffolds the full stack
+cd my-app && make setup && make dev
+
+# Existing project — add AI-driven development to any codebase
+cd your-project
+serpentstack skills init                 # downloads skills + persistent agent configs
+# Then tell your IDE agent: "generate skills for my project"
+serpentstack skills persistent --start   # start background agent (watches logs, runs tests)
 ```
 
 ## Quick Start
@@ -48,27 +59,63 @@ make dev       # start Postgres + Redis + backend + frontend with hot reload
 
 Backend at `localhost:8000`, frontend at `localhost:5173`. Working Items CRUD, JWT auth (register/login), and ownership enforcement out of the box. `make verify` runs lint + typecheck + tests for both ends.
 
-## Skills
+## Project-Specific Skills
 
-Most projects have a `.cursorrules` or a `CONTRIBUTING.md` — static context that goes stale the week after someone writes it. Skills are different: they're structured so agents can update them, not just read them. Each skill teaches an agent how to do one thing in your project:
+There are thousands of generic skills in [marketplaces](https://github.com/anthropics/skills) — "how to write tests," "how to create React components," "how to deploy to AWS." Those teach agents how to write Python. These skills teach agents how to write Python **the way this project does it**:
 
-| Skill | What it teaches |
+| Skill | What it encodes |
 |---|---|
-| `scaffold/SKILL.md` | How to add a new resource end-to-end (model → schema → service → route → tests → frontend) |
-| `auth/SKILL.md` | How auth works, how to protect routes, how to swap JWT for Clerk/Auth0/SSO |
-| `test/SKILL.md` | How to run tests, what the fixtures do, how to interpret failures |
-| `db-migrate/SKILL.md` | How to create and run Alembic migrations |
-| `dev-server/SKILL.md` | Common dev server errors and how to fix them |
-| `deploy/SKILL.md` | Docker build → ECR push → Terraform apply |
-| `git-workflow/SKILL.md` | Branch naming, commit conventions, PR process |
+| `scaffold/SKILL.md` | Full end-to-end resource generation — model, schema, service (flush-only, domain returns), route (commit + ownership), tests (testcontainers), frontend (typed API client + hooks) |
+| `auth/SKILL.md` | The `UserInfo` contract, `get_current_user` dependency, how to protect routes, how to swap JWT for Clerk/Auth0/SSO without changing route code |
+| `test/SKILL.md` | Real Postgres via testcontainers, the savepoint-rollback isolation pattern, `asyncio_mode = "auto"` (no decorators needed), how to interpret failures |
+| `db-migrate/SKILL.md` | Alembic workflow — create, review, apply, rollback, seed data |
+| `dev-server/SKILL.md` | Error detection patterns for backend (structured JSON logs) and frontend (Vite/React), with the auto-fix workflow |
+| `deploy/SKILL.md` | Docker build, ECR push, Terraform plan/apply, health check verification, rollback procedure |
+| `git-workflow/SKILL.md` | Branch naming, conventional commits, PR format, pre-push checklist |
+| `find-skills/SKILL.md` | How to discover community skills, evaluate them, create new project-specific ones, and adapt external guides to this project's conventions |
+| `generate-skills/SKILL.md` | **For existing projects.** Interviews you about your codebase conventions and produces a full `.skills/` directory tailored to your project |
+| `model-routing/SKILL.md` | Delegate code generation to on-device models (Ollama) while keeping cloud models for orchestration — 10-50x cost reduction on coding-heavy sessions |
 
-Agent-specific config files (`.cursorrules`, `.github/copilot-instructions.md`) are also included — these are auto-loaded by their respective agents and contain the architecture overview and key conventions.
+Agent-specific config files (`.cursorrules`, `.github/copilot-instructions.md`) are also included — auto-loaded by their respective agents with the architecture overview and key conventions.
 
-Skills are plain markdown. Edit them, delete the ones you don't need, add new ones. A skill is just a `SKILL.md` in a `.skills/` subdirectory.
+### Why These Skills Work
 
-**IDE agents use skills to write correct code.** When you tell an agent "add a Projects resource," it reads `scaffold/SKILL.md` and generates a model with the right imports, a service that flushes but doesn't commit, a route that checks ownership, and tests without redundant decorators — because the skill told it exactly how. Without skills, it guesses. With skills, it follows your patterns.
+- **Complete templates, not descriptions.** `scaffold/SKILL.md` contains the actual files an agent should produce — real imports, real type signatures, real test assertions. The agent doesn't need to infer anything.
+- **The full chain, not just parts.** Each resource covers model -> schema -> service -> route -> register router -> migration -> tests -> frontend types -> API client -> hooks -> page -> route registration.
+- **Verification built in.** Every skill ends with how to check the work: `make verify`, specific test commands, expected outputs.
+- **Composable.** Skills reference each other — scaffold points to auth for ownership details, test points to scaffold for service return patterns, find-skills lists what's already covered.
 
-**Persistent agents use skills to maintain quality.** A background agent watches your dev server logs via `dev-server/SKILL.md`, catches errors before you see them, and knows how to fix common failures. It can update skills as your project evolves — when you add a new convention, the skill gets updated, and every future IDE session picks it up automatically.
+## Persistent Agents
+
+IDE agents help when you ask. Persistent agents help before you ask — watching your dev server, catching errors in real time, running tests on a schedule, and flagging when skills go stale because your code changed.
+
+SerpentStack ships with an [OpenClaw](https://docs.openclaw.ai) workspace in `.openclaw/`:
+
+| File | What it does |
+|---|---|
+| `SOUL.md` | Agent identity — knows the project's architecture, conventions, and patterns. Follows the same rules encoded in `.skills/`. |
+| `HEARTBEAT.md` | Scheduled checks — dev server health (30s), log scanning for errors (60s), test suite (5min), lint + typecheck (15min), skill freshness (1hr). |
+| `AGENTS.md` | Workspace config — model routing (Haiku for heartbeats, Sonnet for analysis), tool access, operating rules. |
+
+```bash
+make persistent   # installs OpenClaw if needed, starts the background agent
+```
+
+The persistent agent reads your `.skills/` on startup, so it understands the same conventions your IDE agent does. When it detects an error, it reports the problem with full context — file path, line number, what changed, proposed fix — so you can review and approve rather than debug from scratch.
+
+### Two Agent Architectures
+
+SerpentStack supports two agent types with different standards:
+
+| | IDE / Sidecar Agents | Persistent Agents |
+|---|---|---|
+| **Standard** | [Agent Skills](https://agentskills.io/home) (SKILL.md) | [OpenClaw](https://docs.openclaw.ai) (SOUL.md + HEARTBEAT.md) |
+| **Agents** | Claude Code, Codex, Cursor, Copilot, Gemini CLI | OpenClaw gateway |
+| **Mode** | On-demand: you ask, it acts | Always-on: it watches, it tells you |
+| **Directory** | `.skills/` | `.openclaw/` |
+| **Format** | YAML frontmatter + markdown instructions | Workspace files (identity, schedule, config) |
+
+Both are plain text. Both are version-controlled. Neither requires vendor lock-in.
 
 ## What You Get
 
@@ -92,20 +139,21 @@ frontend/
     types/         # Auto-generated from OpenAPI via make types
 
 infra/             # Terraform: App Runner, RDS, ECR, VPC
-.skills/           # Agent context (the important part)
+.skills/           # IDE agent skills (Agent Skills standard)
+.openclaw/         # Persistent agent workspace (OpenClaw)
 ```
 
 ## Patterns
 
-These are the conventions enforced in `.skills/` and `.cursorrules`. Your agent learns them on first read.
+These are the conventions encoded in `.skills/` and `.cursorrules`. An agent learns them on first read.
 
 **Services flush, routes commit.** Services call `await db.flush()` but never `db.commit()`. The route handler owns the transaction boundary. This lets you compose multiple service calls atomically.
 
-**Services never raise HTTPException.** They return `None` for not-found, `False` for not-yours, or a domain object for success. Routes translate: `None` → 404, `False` → 403, object → 200.
+**Services never raise HTTPException.** They return `None` for not-found, `False` for not-yours, or a domain object for success. Routes translate: `None` -> 404, `False` -> 403, object -> 200.
 
-**Ownership enforcement.** Update and delete require `Depends(get_current_user)` and verify ownership. The three-way return (`True`/`None`/`False` → 204/404/403) is consistent across every resource.
+**Ownership enforcement.** Update and delete require `Depends(get_current_user)` and verify ownership. The three-way return (`True`/`None`/`False` -> 204/404/403) is consistent across every resource.
 
-**Auth is one function.** Everything flows through `get_current_user()` → `UserInfo(user_id, email, name, raw_claims)`. Swap JWT for Clerk, Auth0, or SSO by replacing that one dependency. All protected routes keep working.
+**Auth is one function.** Everything flows through `get_current_user()` -> `UserInfo(user_id, email, name, raw_claims)`. Swap JWT for Clerk, Auth0, or SSO by replacing that one dependency. All protected routes keep working.
 
 **Types flow from backend to frontend.** `make types` exports the OpenAPI spec and generates TypeScript types. No manual schema duplication.
 
@@ -122,6 +170,7 @@ make migrate-new name="add projects table"  # create a new migration
 make seed            # seed DB with sample data
 make worker          # start ARQ background task worker
 make ui component=button  # add a shadcn/ui component
+make persistent      # start OpenClaw background agent (installs if needed)
 ```
 
 ## Deploy
@@ -130,11 +179,67 @@ Terraform modules for App Runner, RDS, ECR, and VPC are in `infra/`.
 
 ```bash
 make deploy-init     # one-time: S3 state bucket + DynamoDB lock table
-make deploy          # build → push → terraform apply (defaults to dev)
+make deploy          # build, push, terraform apply (defaults to dev)
 make deploy env=prod # prod shows plan before applying
 ```
 
 Standard Docker containers. The AWS modules are a reference — it runs anywhere containers run.
+
+## Adding to an Existing Project
+
+You don't need the template to benefit from SerpentStack. The `serpentstack skills` commands bring project-specific skills and persistent agents to any codebase.
+
+### Install
+
+```bash
+npm install -g serpentstack        # requires Node 22+
+```
+
+### Step 1: Initialize
+
+```bash
+cd your-project
+serpentstack skills init
+```
+
+This downloads into your project:
+- `.skills/generate-skills/SKILL.md` — interviews you to produce project-specific skills
+- `.skills/model-routing/SKILL.md` — on-device model delegation for cost savings
+- `.skills/find-skills/SKILL.md` — discovering and creating new skills
+- `.openclaw/` — persistent agent workspace (SOUL.md, HEARTBEAT.md, AGENTS.md)
+- `SKILL-AUTHORING.md` — reference guide for writing skills by hand
+
+### Step 2: Generate project-specific skills
+
+Open your IDE agent (Claude Code, Cursor, Copilot, etc.) and say:
+
+> "Generate skills for my project"
+
+The agent loads `generate-skills/SKILL.md`, reads your codebase, and interviews you about your conventions — transaction patterns, auth, testing, deploy. After 5-8 rounds of questions, it produces a full `.skills/` directory tailored to your codebase.
+
+### Step 3: Start the persistent agent
+
+```bash
+serpentstack skills persistent --start
+```
+
+This installs [OpenClaw](https://docs.openclaw.ai) if needed and starts a background agent that watches your dev server, catches errors, runs tests, and flags when skills go stale. Customize the behavior by editing:
+
+- **`.openclaw/SOUL.md`** — Agent identity and conventions (update with your project's patterns)
+- **`.openclaw/HEARTBEAT.md`** — Check intervals and monitoring targets
+- **`.openclaw/AGENTS.md`** — Model routing and cost controls
+
+**Cost note:** Heartbeat checks consume tokens (~4,000-10,000 per cycle). The default config uses Haiku for routine checks and Sonnet for error analysis to keep costs low.
+
+### Keep updated
+
+```bash
+serpentstack skills update    # updates base skills + openclaw configs to latest versions
+```
+
+### Reference
+
+For writing skills by hand, see **[SKILL-AUTHORING.md](SKILL-AUTHORING.md)**. All skills follow the [Agent Skills open standard](https://agentskills.io/home).
 
 ## Design Decisions
 
@@ -146,10 +251,13 @@ Standard Docker containers. The AWS modules are a reference — it runs anywhere
 | Domain returns, not exceptions | Services return `None`/`False`, routes translate to HTTP. Services stay reusable in workers, CLI tools, event handlers. |
 | `openapi-typescript` | `make types` auto-generates frontend types. No manual schema mirroring. |
 | Rate limiting (SlowAPI) | In-memory for dev, Redis for prod. Set `RATE_LIMIT_STORAGE_URI` to switch. |
+| Agent Skills open standard | `.skills/` uses the same SKILL.md format as Claude Code, Codex, Cursor, and Copilot. No vendor lock-in. |
+| OpenClaw persistent agents | IDE agents are reactive. Persistent agents watch logs, catch errors, run tests proactively. Both read the same skills. |
+| CLI: `stack` vs `skills` | `serpentstack stack new` scaffolds the full template. `serpentstack skills init` adds skills + persistent agents to any existing project. Two audiences, one tool. |
 
 ## Contributing
 
-Contributions welcome — especially new `.skills/`, Terraform modules for GCP/Azure, and agent config files for additional tools. [Open an issue](https://github.com/Benja-Pauls/SerpentStack/issues) for bugs and feature requests.
+Contributions welcome — especially new project-specific skills, Terraform modules for GCP/Azure, and agent config files for additional tools. See [SKILL-AUTHORING.md](SKILL-AUTHORING.md) for how to write good skills. [Open an issue](https://github.com/Benja-Pauls/SerpentStack/issues) for bugs and feature requests.
 
 ## License
 
