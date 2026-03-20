@@ -10,13 +10,19 @@ const MANIFEST = [
   '.skills/git-workflow/SKILL.md',
   '.skills/model-routing/SKILL.md',
   '.openclaw/SOUL.md',
-  '.openclaw/HEARTBEAT.md',
-  '.openclaw/AGENTS.md',
+  '.openclaw/agents/log-watcher/AGENT.md',
+  '.openclaw/agents/test-runner/AGENT.md',
+  '.openclaw/agents/skill-maintainer/AGENT.md',
   'SKILL-AUTHORING.md',
 ];
 
-// OpenClaw files are meant to be customized — warn before overwriting
-const CUSTOMIZABLE = new Set(['.openclaw/SOUL.md', '.openclaw/HEARTBEAT.md', '.openclaw/AGENTS.md']);
+// OpenClaw files that are meant to be customized — warn before overwriting
+const CUSTOMIZABLE = new Set([
+  '.openclaw/SOUL.md',
+  '.openclaw/agents/log-watcher/AGENT.md',
+  '.openclaw/agents/test-runner/AGENT.md',
+  '.openclaw/agents/skill-maintainer/AGENT.md',
+]);
 
 export async function skillsUpdate({ force = false, all = false } = {}) {
   printHeader();

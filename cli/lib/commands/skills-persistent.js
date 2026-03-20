@@ -1,9 +1,21 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFile, spawn } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
-import { info, success, warn, error, confirm, bold, dim, green, cyan, printBox, printHeader } from '../utils/ui.js';
+import { info, success, warn, error, confirm, bold, dim, green, cyan, yellow, printBox, printHeader } from '../utils/ui.js';
+import {
+  parseAgentMd,
+  discoverAgents,
+  generateWorkspace,
+  writePid,
+  readPid,
+  removePid,
+  listPids,
+  isProcessAlive,
+  cleanStalePids,
+  cleanWorkspace,
+} from '../utils/agent-utils.js';
 
 function which(cmd) {
   return new Promise((resolve) => {
@@ -11,38 +23,59 @@ function which(cmd) {
   });
 }
 
-function checkOpenClawWorkspace() {
-  const dir = join(process.cwd(), '.openclaw');
-  const required = ['SOUL.md', 'HEARTBEAT.md', 'AGENTS.md'];
-  if (!existsSync(dir)) return false;
-  return required.every((f) => existsSync(join(dir, f)));
-}
-
-function checkSoulCustomized() {
-  const soulPath = join(process.cwd(), '.openclaw/SOUL.md');
-  if (!existsSync(soulPath)) return false;
-  const { readFileSync } = require_fs();
-  const content = readFileSync(soulPath, 'utf8');
-  // If it still has the template placeholder, it's not customized
-  return !content.includes('{{PROJECT_NAME}}') && !content.startsWith('# SerpentStack');
-}
-
-function require_fs() {
-  // Lazy import to avoid top-level dynamic import
-  return { readFileSync: existsSync ? (await_import()).readFileSync : null };
-}
-
 async function askQuestion(rl, label, hint) {
   const answer = await rl.question(`  ${green('?')} ${bold(label)}${hint ? ` ${dim(hint)}` : ''}: `);
   return answer.trim();
 }
 
-async function customizeWorkspace() {
+// ─── Stop Flow ──────────────────────────────────────────────
+
+async function stopAllAgents(projectDir) {
+  cleanStalePids(projectDir);
+  const running = listPids(projectDir);
+
+  if (running.length === 0) {
+    info('No agents are currently running.');
+    console.log();
+    return;
+  }
+
+  console.log(`  ${dim('Stopping')} ${bold(String(running.length))} ${dim('agent(s)...')}`);
+  console.log();
+
+  let stopped = 0;
+  for (const { name, pid } of running) {
+    try {
+      process.kill(pid, 'SIGTERM');
+      removePid(projectDir, name);
+      cleanWorkspace(projectDir, name);
+      success(`${bold(name)} stopped ${dim(`(PID ${pid})`)}`);
+      stopped++;
+    } catch (err) {
+      if (err.code === 'ESRCH') {
+        // Process already dead
+        removePid(projectDir, name);
+        success(`${bold(name)} already stopped`);
+        stopped++;
+      } else {
+        error(`Failed to stop ${bold(name)}: ${err.message}`);
+      }
+    }
+  }
+
+  console.log();
+  success(`${green(String(stopped))} agent(s) stopped`);
+  console.log();
+}
+
+// ─── Customize Workspace ────────────────────────────────────
+
+async function customizeWorkspace(projectDir) {
   const rl = createInterface({ input: stdin, output: stdout });
 
   console.log();
-  console.log(`  ${bold('Configure your persistent agent')}`);
-  console.log(`  ${dim("Answer a few questions so the agent understands your project.")}`);
+  console.log(`  ${bold('Configure your project identity')}`);
+  console.log(`  ${dim('Answer a few questions so all agents understand your project.')}`);
   console.log();
 
   try {
@@ -55,13 +88,11 @@ async function customizeWorkspace() {
 
     console.log();
 
-    // Read and update SOUL.md with project-specific info
-    const { readFileSync, writeFileSync } = await import('node:fs');
-    const soulPath = join(process.cwd(), '.openclaw/SOUL.md');
+    const soulPath = join(projectDir, '.openclaw/SOUL.md');
     let soul = readFileSync(soulPath, 'utf8');
 
     const projectContext = [
-      `# ${name} — Persistent Development Agent`,
+      `# ${name} — Persistent Development Agents`,
       '',
       `**Project:** ${name}`,
       `**Language:** ${lang}`,
@@ -84,35 +115,26 @@ async function customizeWorkspace() {
     writeFileSync(soulPath, soul, 'utf8');
     success(`Updated ${bold('.openclaw/SOUL.md')} with ${green(name)} project context`);
 
-    // Update HEARTBEAT.md with the actual dev/test commands
-    const heartbeatPath = join(process.cwd(), '.openclaw/HEARTBEAT.md');
-    if (existsSync(heartbeatPath)) {
-      let heartbeat = readFileSync(heartbeatPath, 'utf8');
-      // Replace placeholder commands if they exist
-      heartbeat = heartbeat.replace(/make dev/g, devCmd);
-      heartbeat = heartbeat.replace(/make test/g, testCmd);
-      writeFileSync(heartbeatPath, heartbeat, 'utf8');
-      success(`Updated ${bold('.openclaw/HEARTBEAT.md')} with your dev/test commands`);
-    }
-
     return true;
   } finally {
     rl.close();
   }
 }
 
+// ─── Install OpenClaw ───────────────────────────────────────
+
 async function installOpenClaw() {
   console.log();
   warn('OpenClaw is not installed.');
   console.log();
-  console.log(`  ${dim('OpenClaw is the persistent agent runtime. It runs in the background,')}`);
-  console.log(`  ${dim('watching your dev server and running health checks on a schedule.')}`);
+  console.log(`  ${dim('OpenClaw is the persistent agent runtime. Each agent in')}`);
+  console.log(`  ${dim('.openclaw/agents/ runs as a separate OpenClaw process.')}`);
   console.log();
 
   const install = await confirm('Install OpenClaw now? (npm install -g openclaw@latest)');
   if (!install) {
     console.log();
-    info(`Install manually when ready:`);
+    info('Install manually when ready:');
     console.log(`  ${dim('$')} ${bold('npm install -g openclaw@latest')}`);
     console.log(`  ${dim('$')} ${bold('serpentstack skills persistent')}`);
     console.log();
@@ -130,99 +152,152 @@ async function installOpenClaw() {
   return true;
 }
 
-async function startAgent() {
-  console.log();
-  info('Starting persistent agent...');
-  console.log();
-  console.log(`  ${dim('The agent will:')}`);
-  console.log(`  ${dim('\u2022 Watch your dev server for errors')}`);
-  console.log(`  ${dim('\u2022 Run tests on a schedule')}`);
-  console.log(`  ${dim('\u2022 Flag when skills go stale')}`);
-  console.log(`  ${dim('\u2022 Propose fixes with full context')}`);
-  console.log();
+// ─── Start Agents ───────────────────────────────────────────
 
-  const child = spawn('openclaw', ['start', '--workspace', '.openclaw/'], {
-    stdio: 'inherit',
-    cwd: process.cwd(),
-  });
+function startAgent(projectDir, agentName, workspacePath) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('openclaw', ['start', '--workspace', workspacePath], {
+      stdio: 'ignore',
+      detached: true,
+      cwd: projectDir,
+      env: {
+        ...process.env,
+        OPENCLAW_STATE_DIR: join(workspacePath, '.state'),
+      },
+    });
 
-  child.on('error', (err) => {
-    error(`Failed to start OpenClaw: ${err.message}`);
-    process.exit(1);
-  });
+    child.unref();
 
-  child.on('close', (code) => {
-    if (code !== 0) {
-      error(`OpenClaw exited with code ${code}`);
-      process.exit(code);
-    }
+    child.on('error', (err) => {
+      reject(new Error(`Failed to start ${agentName}: ${err.message}`));
+    });
+
+    // Give it a moment to start, then record PID
+    setTimeout(() => {
+      writePid(projectDir, agentName, child.pid);
+      resolve(child.pid);
+    }, 500);
   });
 }
 
+// ─── Main Flow ──────────────────────────────────────────────
+
 export async function skillsPersistent({ stop = false } = {}) {
-  // --stop is the only flag — everything else is a guided flow
+  const projectDir = process.cwd();
+
+  // --stop flag
   if (stop) {
-    const hasOpenClaw = await which('openclaw');
-    if (!hasOpenClaw) {
-      error('OpenClaw is not installed. Nothing to stop.');
-      return;
-    }
-    info('Stopping persistent agent...');
-    await new Promise((resolve, reject) => {
-      execFile('openclaw', ['stop'], (err, _stdout, stderr) => {
-        if (err) reject(new Error(stderr || err.message));
-        else resolve();
-      });
-    });
-    success('Persistent agent stopped');
-    console.log();
+    printHeader();
+    await stopAllAgents(projectDir);
     return;
   }
 
   // === Guided setup flow ===
   printHeader();
 
-  // Step 1: Check for .openclaw/ workspace
-  console.log(`  ${bold('Step 1/3')} ${dim('\u2014 Check workspace')}`);
+  // Step 1: Check workspace
+  console.log(`  ${bold('Step 1/4')} ${dim('\u2014 Check workspace')}`);
   console.log();
 
-  if (!checkOpenClawWorkspace()) {
+  const soulPath = join(projectDir, '.openclaw/SOUL.md');
+  if (!existsSync(soulPath)) {
     error('No .openclaw/ workspace found.');
     console.log();
     console.log(`  Run ${bold('serpentstack skills init')} first to download the workspace files.`);
     console.log();
     process.exit(1);
   }
+  success('.openclaw/SOUL.md found');
 
-  success('.openclaw/ workspace found');
+  const agents = discoverAgents(projectDir);
+  if (agents.length === 0) {
+    error('No agents found in .openclaw/agents/');
+    console.log();
+    console.log(`  Run ${bold('serpentstack skills init')} to download the default agents,`);
+    console.log(`  or create your own at ${bold('.openclaw/agents/<name>/AGENT.md')}`);
+    console.log();
+    process.exit(1);
+  }
+  success(`${green(String(agents.length))} agent(s) found in .openclaw/agents/`);
   console.log();
 
-  // Step 2: Customize if needed
-  console.log(`  ${bold('Step 2/3')} ${dim('\u2014 Configure for your project')}`);
+  // Clean up any stale PIDs from previous runs
+  cleanStalePids(projectDir);
 
-  // Check if SOUL.md looks like it has been customized
-  const { readFileSync } = await import('node:fs');
-  const soulPath = join(process.cwd(), '.openclaw/SOUL.md');
+  // Check if any agents are already running
+  const alreadyRunning = listPids(projectDir);
+  if (alreadyRunning.length > 0) {
+    warn(`${bold(String(alreadyRunning.length))} agent(s) already running`);
+    for (const { name, pid } of alreadyRunning) {
+      console.log(`  ${dim('\u2022')} ${bold(name)} ${dim(`(PID ${pid})`)}`);
+    }
+    console.log();
+    const restart = await confirm('Stop running agents and restart?');
+    if (restart) {
+      await stopAllAgents(projectDir);
+    } else {
+      console.log();
+      info('Keeping existing agents running.');
+      console.log();
+      return;
+    }
+  }
+
+  // Step 2: Configure project identity
+  console.log(`  ${bold('Step 2/4')} ${dim('\u2014 Configure project identity')}`);
+
   const soulContent = readFileSync(soulPath, 'utf8');
   const isCustomized = !soulContent.startsWith('# SerpentStack') && !soulContent.includes('{{PROJECT_NAME}}');
 
   if (isCustomized) {
     console.log();
-    success('Workspace already customized');
+    success('SOUL.md already customized');
     console.log();
-
     const reconfigure = await confirm('Reconfigure? (will overwrite current settings)');
     if (reconfigure) {
-      await customizeWorkspace();
+      await customizeWorkspace(projectDir);
     }
     console.log();
   } else {
-    await customizeWorkspace();
+    await customizeWorkspace(projectDir);
     console.log();
   }
 
-  // Step 3: Install OpenClaw + start
-  console.log(`  ${bold('Step 3/3')} ${dim('\u2014 Start the agent')}`);
+  // Step 3: Select agents
+  console.log(`  ${bold('Step 3/4')} ${dim('\u2014 Review agents')}`);
+  console.log();
+
+  // Parse all agents and display them
+  const parsed = [];
+  for (const agent of agents) {
+    try {
+      const agentMd = parseAgentMd(agent.agentMdPath);
+      parsed.push({ ...agent, agentMd });
+
+      const model = agentMd.meta.model || 'default';
+      const modelShort = model.includes('haiku') ? 'Haiku' : model.includes('sonnet') ? 'Sonnet' : model.includes('opus') ? 'Opus' : model;
+      const schedule = (agentMd.meta.schedule || []).map(s => s.every).join(', ');
+
+      success(`${bold(agent.name)}  ${dim(agentMd.meta.description || '')}`);
+      console.log(`    ${dim(`Model: ${modelShort}`)}${schedule ? dim(` \u2022 Schedule: ${schedule}`) : ''}`);
+    } catch (err) {
+      error(`${bold(agent.name)}: ${err.message}`);
+    }
+  }
+
+  if (parsed.length === 0) {
+    console.log();
+    error('No valid agents found. Check your AGENT.md files.');
+    console.log();
+    process.exit(1);
+  }
+
+  console.log();
+  console.log(`  ${dim(`${parsed.length} agent(s) will be started. Delete an agent's folder to disable it.`)}`);
+  console.log();
+
+  // Step 4: Install + start
+  console.log(`  ${bold('Step 4/4')} ${dim('\u2014 Start agents')}`);
 
   const hasOpenClaw = await which('openclaw');
   if (!hasOpenClaw) {
@@ -232,18 +307,52 @@ export async function skillsPersistent({ stop = false } = {}) {
     success('OpenClaw is installed');
   }
 
-  const shouldStart = await confirm('Start the persistent agent now?');
+  const shouldStart = await confirm(`Start ${parsed.length} agent(s) now?`);
   if (!shouldStart) {
     console.log();
     printBox('Start later', [
-      `${dim('$')} ${bold('serpentstack skills persistent')}    ${dim('# run setup again')}`,
-      `${dim('$')} ${bold('openclaw start --workspace .openclaw/')}  ${dim('# start directly')}`,
-      '',
-      `${dim('To stop:')}`,
-      `${dim('$')} ${bold('serpentstack skills persistent --stop')}`,
+      `${dim('$')} ${bold('serpentstack skills persistent')}         ${dim('# run setup again')}`,
+      `${dim('$')} ${bold('serpentstack skills persistent --stop')}  ${dim('# stop all agents')}`,
     ]);
     return;
   }
 
-  await startAgent();
+  console.log();
+
+  // Read shared SOUL.md
+  const sharedSoul = readFileSync(soulPath, 'utf8');
+  let started = 0;
+
+  for (const { name, agentMd } of parsed) {
+    try {
+      const workspacePath = generateWorkspace(projectDir, name, agentMd, sharedSoul);
+      const pid = await startAgent(projectDir, name, workspacePath);
+
+      const model = agentMd.meta.model || 'default';
+      const modelShort = model.includes('haiku') ? 'Haiku' : model.includes('sonnet') ? 'Sonnet' : model.includes('opus') ? 'Opus' : model;
+      const schedule = (agentMd.meta.schedule || []).map(s => s.every).join(', ');
+
+      success(`${bold(name)} started ${dim(`(${modelShort}, ${schedule || 'no schedule'}) PID ${pid}`)}`);
+      started++;
+    } catch (err) {
+      error(`${bold(name)}: ${err.message}`);
+    }
+  }
+
+  console.log();
+  if (started > 0) {
+    success(`${green(String(started))} agent(s) running`);
+    console.log();
+    printBox('Manage your agents', [
+      `${dim('$')} ${bold('serpentstack skills persistent --stop')}  ${dim('# stop all agents')}`,
+      `${dim('$')} ${bold('serpentstack skills persistent')}         ${dim('# restart / reconfigure')}`,
+      '',
+      `${dim('Add agents:')}   ${dim('Create .openclaw/agents/<name>/AGENT.md')}`,
+      `${dim('Remove agents:')} ${dim('Delete the agent folder from .openclaw/agents/')}`,
+      `${dim('Customize:')}     ${dim('Edit AGENT.md frontmatter (model, schedule, tools)')}`,
+    ]);
+  } else {
+    error('No agents were started. Check the errors above.');
+    console.log();
+  }
 }

@@ -12,8 +12,9 @@ const SKILLS_FILES = [
 
 const OPENCLAW_FILES = [
   '.openclaw/SOUL.md',
-  '.openclaw/HEARTBEAT.md',
-  '.openclaw/AGENTS.md',
+  '.openclaw/agents/log-watcher/AGENT.md',
+  '.openclaw/agents/test-runner/AGENT.md',
+  '.openclaw/agents/skill-maintainer/AGENT.md',
 ];
 
 const DOCS_FILES = [
@@ -95,11 +96,11 @@ export async function skillsInit({ force = false } = {}) {
     `descriptions. Reference SKILL-AUTHORING.md for the format.`,
   ]);
 
-  printBox('After generating skills, try setting up a persistent agent too', [
+  printBox('After generating skills, try setting up persistent agents too', [
     `${dim('$')} ${bold('serpentstack skills persistent')}  ${dim('# guided setup + start')}`,
     '',
-    `${dim('A background agent that watches your dev server, catches')}`,
-    `${dim('errors, runs tests, and keeps your skills up to date.')}`,
-    `${dim('Customize its behavior by editing the files in .openclaw/.')}`,
+    `${dim('Background agents that watch your dev server, run tests,')}`,
+    `${dim('and keep your skills up to date. Each agent in .openclaw/agents/')}`,
+    `${dim('runs independently — add, remove, or customize them freely.')}`,
   ]);
 }

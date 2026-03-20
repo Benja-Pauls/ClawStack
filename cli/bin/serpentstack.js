@@ -27,8 +27,8 @@ function showHelp() {
   ${bold(green('Skills commands'))} ${dim('(any project)')}
     ${cyan('skills init')}                   Download base skills + persistent agent configs
     ${cyan('skills update')}                 Update base skills to latest versions
-    ${cyan('skills persistent')}             Guided setup: configure + install + start agent
-    ${cyan('skills persistent')} --stop      Stop the background agent
+    ${cyan('skills persistent')}             Guided setup: configure + install + start all agents
+    ${cyan('skills persistent')} --stop      Stop all running agents
 
   ${bold('Options:')}
     --force                       Overwrite existing files
