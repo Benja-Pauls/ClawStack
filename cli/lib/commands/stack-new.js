@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { cloneRepo, checkGit } from '../utils/github.js';
-import { info, success, error, spinner, bold, dim, green, printBox, printPrompt } from '../utils/ui.js';
+import { info, success, warn, error, spinner, bold, dim, green, cyan, printBox, printPrompt, printHeader } from '../utils/ui.js';
 
 const CLEANUP_PATHS = [
   'cli',
@@ -18,6 +18,12 @@ function validateName(name) {
     return 'Name must start with a letter and contain only letters, numbers, hyphens, and underscores';
   }
   return null;
+}
+
+function checkCommand(cmd) {
+  return new Promise((resolve) => {
+    execFile('which', [cmd], (err) => resolve(!err));
+  });
 }
 
 export async function stackNew(name) {
@@ -35,16 +41,48 @@ export async function stackNew(name) {
     process.exit(1);
   }
 
-  const hasGit = await checkGit();
-  if (!hasGit) {
-    error('git is not installed. Install git first: https://git-scm.com/downloads');
-    process.exit(1);
-  }
+  printHeader();
 
+  // Step 1: Check prerequisites
+  console.log(`  ${bold('Step 1/4')} ${dim('\u2014 Checking prerequisites')}`);
   console.log();
 
-  // Clone
-  const spin = spinner(`Cloning SerpentStack template into ${name}/...`);
+  const checks = [
+    { cmd: 'git', label: 'git', url: 'https://git-scm.com/downloads' },
+    { cmd: 'python3', label: 'Python 3.12+', url: 'https://python.org/downloads' },
+    { cmd: 'node', label: 'Node 22+', url: 'https://nodejs.org' },
+    { cmd: 'docker', label: 'Docker', url: 'https://docker.com/get-started' },
+    { cmd: 'uv', label: 'uv (Python package manager)', url: 'https://docs.astral.sh/uv' },
+  ];
+
+  let missing = [];
+  for (const { cmd, label, url } of checks) {
+    const found = await checkCommand(cmd);
+    if (found) {
+      console.log(`  ${green('\u2713')} ${label}`);
+    } else {
+      console.log(`  ${dim('\u2022')} ${dim(label)} ${dim(`\u2014 install: ${url}`)}`);
+      missing.push(label);
+    }
+  }
+  console.log();
+
+  if (missing.length > 0) {
+    // git is required to clone — everything else is needed later
+    const gitMissing = !(await checkCommand('git'));
+    if (gitMissing) {
+      error(`git is required to scaffold the project. Install it first: https://git-scm.com/downloads`);
+      process.exit(1);
+    }
+    warn(`Missing: ${bold(missing.join(', '))}. You can install these before running ${bold('make setup')}.`);
+    console.log();
+  }
+
+  // Step 2: Clone template
+  console.log(`  ${bold('Step 2/4')} ${dim('\u2014 Cloning template')}`);
+  console.log();
+
+  const spin = spinner(`Downloading SerpentStack template...`);
   try {
     await cloneRepo(dest);
     spin.stop(success(`Template cloned into ${green(name)}/`));
@@ -54,15 +92,19 @@ export async function stackNew(name) {
     process.exit(1);
   }
 
-  // Clean up repo-specific files
+  // Step 3: Clean up repo-specific files
+  console.log();
+  console.log(`  ${bold('Step 3/4')} ${dim('\u2014 Preparing project')}`);
+  console.log();
+
   for (const p of CLEANUP_PATHS) {
     const full = join(dest, p);
     if (existsSync(full)) {
       await rm(full, { recursive: true, force: true });
     }
   }
+  success('Removed SerpentStack repo files');
 
-  // Initialize fresh git repo
   await new Promise((resolve, reject) => {
     execFile('git', ['init'], { cwd: dest }, (err) => {
       if (err) reject(new Error(`git init failed: ${err.message}`));
@@ -71,25 +113,28 @@ export async function stackNew(name) {
   });
   success('Initialized fresh git repository');
 
-  // What was created
+  // Step 4: Summary
   console.log();
-  console.log(`  ${dim('Includes:')}`);
-  console.log(`  ${green('\u2713')} FastAPI backend with async SQLAlchemy + JWT auth`);
-  console.log(`  ${green('\u2713')} React frontend with TypeScript + shadcn/ui`);
-  console.log(`  ${green('\u2713')} PostgreSQL + Redis via Docker Compose`);
-  console.log(`  ${green('\u2713')} Terraform infrastructure (AWS App Runner)`);
-  console.log(`  ${green('\u2713')} 10 project-specific Agent Skills in .skills/`);
-  console.log(`  ${green('\u2713')} OpenClaw persistent agent configs in .openclaw/`);
+  console.log(`  ${bold('Step 4/4')} ${dim('\u2014 Done!')}`);
+  console.log();
+
+  console.log(`  ${dim('Your project includes:')}`);
+  console.log(`  ${green('\u2713')} FastAPI backend ${dim('(async SQLAlchemy, JWT auth, ownership enforcement)')}`);
+  console.log(`  ${green('\u2713')} React frontend ${dim('(TypeScript, Vite, shadcn/ui)')}`);
+  console.log(`  ${green('\u2713')} PostgreSQL + Redis ${dim('(Docker Compose)')}`);
+  console.log(`  ${green('\u2713')} Terraform infrastructure ${dim('(AWS App Runner, RDS, ECR)')}`);
+  console.log(`  ${green('\u2713')} 10 project-specific Agent Skills ${dim('(.skills/)')}`);
+  console.log(`  ${green('\u2713')} Persistent agent configs ${dim('(.openclaw/)')}`);
   console.log();
 
   printBox('Get started', [
     `${dim('$')} ${bold(`cd ${name}`)}`,
-    `${dim('$')} ${bold('make init')}      ${dim('# interactive project setup')}`,
-    `${dim('$')} ${bold('make setup')}     ${dim('# install dependencies')}`,
-    `${dim('$')} ${bold('make dev')}       ${dim('# start dev server')}`,
+    `${dim('$')} ${bold('make init')}      ${dim('# set project name, DB config')}`,
+    `${dim('$')} ${bold('make setup')}     ${dim('# install Python + Node dependencies')}`,
+    `${dim('$')} ${bold('make dev')}       ${dim('# start Postgres + Redis + backend + frontend')}`,
     '',
-    `Then open your IDE agent and start building.`,
-    `The agent reads ${bold('.skills/')} automatically.`,
+    `${dim('Then open your IDE agent and try the prompt below.')}`,
+    `${dim('The agent discovers .skills/ automatically.')}`,
   ]);
 
   printPrompt([

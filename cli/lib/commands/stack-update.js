@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { downloadFile } from '../utils/github.js';
 import { safeWrite } from '../utils/fs-helpers.js';
-import { info, success, warn, error, spinner, bold, dim, green, fileStatus } from '../utils/ui.js';
+import { info, success, warn, error, spinner, bold, dim, green, printHeader, fileStatus } from '../utils/ui.js';
 
 // Template-level files that may be updated upstream
 const TEMPLATE_FILES = [
@@ -16,16 +16,18 @@ const TEMPLATE_FILES = [
 export async function stackUpdate({ force = false } = {}) {
   // Verify we're in a SerpentStack project
   if (!existsSync(join(process.cwd(), 'Makefile')) || !existsSync(join(process.cwd(), 'backend'))) {
-    error('Not a SerpentStack project. Run this from a directory created with `serpentstack stack new`.');
+    error('Not a SerpentStack project.');
+    console.log(`\n  Run this from a directory created with ${bold('serpentstack stack new')}.\n`);
     process.exit(1);
   }
 
-  console.log();
+  printHeader();
+
   info(`Checking for template updates in ${bold(process.cwd())}`);
   console.log();
 
   const results = { updated: 0, unchanged: 0, failed: 0 };
-  const spin = spinner('Fetching latest template files...');
+  const spin = spinner('Comparing with latest template...');
   const logs = [];
 
   try {
@@ -64,5 +66,14 @@ export async function stackUpdate({ force = false } = {}) {
   if (results.unchanged > 0) parts.push(`${results.unchanged} up to date`);
   if (results.failed > 0) parts.push(`${results.failed} failed`);
   console.log(`  ${parts.join(dim(' \u2022 '))}`);
+
+  if (results.updated > 0) {
+    console.log();
+    info(`${dim('Review changes with')} ${bold('git diff')} ${dim('before committing.')}`);
+  }
+
+  // Also offer skills update
+  console.log();
+  info(`${dim('To also update skills:')} ${bold('serpentstack skills update')}`);
   console.log();
 }

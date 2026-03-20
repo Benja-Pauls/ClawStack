@@ -27,8 +27,7 @@ function showHelp() {
   ${bold(green('Skills commands'))} ${dim('(any project)')}
     ${cyan('skills init')}                   Download base skills + persistent agent configs
     ${cyan('skills update')}                 Update base skills to latest versions
-    ${cyan('skills persistent')} --create    Set up OpenClaw workspace for your project
-    ${cyan('skills persistent')} --start     Install OpenClaw (if needed) and start agent
+    ${cyan('skills persistent')}             Guided setup: configure + install + start agent
     ${cyan('skills persistent')} --stop      Stop the background agent
 
   ${bold('Options:')}
@@ -40,8 +39,8 @@ function showHelp() {
   ${dim('Examples:')}
     ${dim('$')} serpentstack stack new my-saas-app
     ${dim('$')} serpentstack skills init
-    ${dim('$')} serpentstack skills init --force
-    ${dim('$')} serpentstack skills persistent --start
+    ${dim('$')} serpentstack skills persistent
+    ${dim('$')} serpentstack skills persistent --stop
 
   ${dim('Docs: https://github.com/Benja-Pauls/SerpentStack')}
 `);
@@ -82,11 +81,7 @@ async function main() {
       await skillsUpdate({ force: !!flags.force, all: !!flags.all });
     } else if (verb === 'persistent') {
       const { skillsPersistent } = await import('../lib/commands/skills-persistent.js');
-      await skillsPersistent({
-        create: !!flags.create,
-        start: !!flags.start,
-        stop: !!flags.stop,
-      });
+      await skillsPersistent({ stop: !!flags.stop });
     } else {
       error(`Unknown skills command: ${verb}`);
       console.log(`\n  Available: ${bold('skills init')}, ${bold('skills update')}, ${bold('skills persistent')}\n`);
