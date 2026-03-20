@@ -19,7 +19,7 @@ export function safeWrite(destPath, content, { force = false } = {}) {
     // Don't overwrite if content is identical
     try {
       const existing = readFileSync(destPath, 'utf8');
-      if (existing === content) return 'skipped';
+      if (existing === content) return 'unchanged';
     } catch { /* proceed with overwrite */ }
 
     writeFileSync(destPath, content, 'utf8');

@@ -1,0 +1,24 @@
+{
+  "project": {
+    "name": "serpentstack-frontend",
+    "language": "Python + TypeScript",
+    "framework": "FastAPI + React",
+    "devCmd": "make dev",
+    "testCmd": "make verify",
+    "conventions": "Services flush, routes commit. Domain returns, not exceptions. Real Postgres in tests."
+  },
+  "agents": {
+    "log-watcher": {
+      "enabled": true,
+      "model": "anthropic/claude-haiku-4-20250414"
+    },
+    "skill-maintainer": {
+      "enabled": true,
+      "model": "anthropic/claude-sonnet-4-20250514"
+    },
+    "test-runner": {
+      "enabled": true,
+      "model": "anthropic/claude-haiku-4-20250414"
+    }
+  }
+}

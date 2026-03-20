@@ -17,10 +17,10 @@ const MAGENTA = c(35);
 const CYAN = c(36);
 const BG_DIM = c(100);
 
-export const info = (msg) => console.log(`${CYAN}\u2022${RESET} ${msg}`);
-export const success = (msg) => console.log(`${GREEN}\u2713${RESET} ${msg}`);
-export const warn = (msg) => console.log(`${YELLOW}\u25B3${RESET} ${msg}`);
-export const error = (msg) => console.error(`${RED}\u2717${RESET} ${msg}`);
+export const info = (msg) => console.log(`  ${CYAN}\u2022${RESET} ${msg}`);
+export const success = (msg) => console.log(`  ${GREEN}\u2713${RESET} ${msg}`);
+export const warn = (msg) => console.log(`  ${YELLOW}\u25B3${RESET} ${msg}`);
+export const error = (msg) => console.error(`  ${RED}\u2717${RESET} ${msg}`);
 export const dim = (msg) => `${DIM}${msg}${RESET}`;
 export const bold = (msg) => `${BOLD}${msg}${RESET}`;
 export const green = (msg) => `${GREEN}${msg}${RESET}`;
@@ -147,5 +147,5 @@ export function fileStatus(path, status, detail) {
 }
 
 function stripAnsi(str) {
-  return str.replace(/\x1b\[\d+m/g, '');
+  return str.replace(/\x1b\[[\d;]*m/g, '');
 }

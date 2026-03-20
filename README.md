@@ -38,7 +38,7 @@ Add AI-driven development standards to any codebase in three steps.
 
 ```bash
 cd your-project
-serpentstack skills init
+serpentstack skills
 ```
 
 This downloads base skills, persistent agent configs, and a skill-authoring guide into your project. See [What Gets Installed](#what-gets-installed) for the full list.
@@ -54,10 +54,10 @@ The agent reads your codebase, asks 5-8 rounds of questions about your conventio
 ### 3. Start persistent agents
 
 ```bash
-serpentstack skills persistent            # guided setup: configure + install + start
+serpentstack persistent                   # configure + select agents + launch
 ```
 
-Walks you through configuring your project identity, shows the agents it found in `.openclaw/agents/`, installs OpenClaw if needed, and starts them all as background processes. They watch your dev server, catch errors before you see them, run tests on a schedule, and flag when skills go stale. See [Persistent Agents](#persistent-agents) for details.
+Walks you through configuring your project, lets you choose which agents to enable and what model each uses (cloud or local), then opens each agent in its own terminal window. They watch your dev server, catch errors before you see them, run tests on a schedule, and flag when skills go stale. Your choices are saved to `.openclaw/config.json` so re-runs skip the questions. See [Persistent Agents](#persistent-agents) for details.
 
 ### Keep updated
 
@@ -93,7 +93,7 @@ See [Template Reference](#template-reference) for the full stack details, patter
 
 ## What Gets Installed
 
-### `serpentstack skills init` downloads:
+### `serpentstack skills` downloads:
 
 | File | What it does |
 |---|---|
@@ -144,7 +144,7 @@ SerpentStack ships with a multi-agent [OpenClaw](https://docs.openclaw.ai) works
     skill-maintainer/AGENT.md          # detects stale skills (Sonnet, 1hr)
 ```
 
-Each `AGENT.md` is a self-contained agent definition with YAML frontmatter (model, schedule, tools) and markdown instructions. `serpentstack skills persistent` discovers all agents, generates runtime workspaces, and starts them as separate OpenClaw processes.
+Each `AGENT.md` is a self-contained agent definition with YAML frontmatter (model, schedule, tools) and markdown instructions. `serpentstack persistent` discovers all agents, lets you choose which to start and what model each uses, then opens each in its own terminal window as a separate OpenClaw process.
 
 | | IDE / Sidecar Agents | Persistent Agents |
 |---|---|---|
@@ -167,15 +167,16 @@ Both are plain text. Both are version-controlled. Neither requires vendor lock-i
 # Install
 npm install -g serpentstack              # requires Node 22+
 
-# Stack commands (new projects)
-serpentstack stack new <name>            # scaffold a new project from the template
+# New projects
+serpentstack stack new <name>            # scaffold a full project from the template
 serpentstack stack update                # update template-level files to latest
 
-# Skills commands (any project)
-serpentstack skills init                 # download base skills + persistent agent configs
+# Any project
+serpentstack skills                      # download base skills + persistent agent configs
 serpentstack skills update               # update base skills to latest versions
-serpentstack skills persistent           # guided setup: configure + install + start all agents
-serpentstack skills persistent --stop    # stop all running agents
+serpentstack persistent                  # manage + launch persistent agents
+serpentstack persistent --stop           # stop all running agents
+serpentstack persistent --reconfigure    # change models, enable/disable agents
 
 # Options
 --force                                 # overwrite existing files

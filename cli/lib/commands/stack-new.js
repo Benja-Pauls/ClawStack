@@ -26,6 +26,22 @@ function checkCommand(cmd) {
   });
 }
 
+function getCommandVersion(cmd, args = ['--version']) {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { timeout: 5000 }, (err, stdout) => {
+      if (err) resolve(null);
+      else resolve(stdout.trim());
+    });
+  });
+}
+
+function parseVersion(versionStr) {
+  if (!versionStr) return null;
+  const match = versionStr.match(/(\d+)\.(\d+)/);
+  if (!match) return null;
+  return { major: parseInt(match[1]), minor: parseInt(match[2]) };
+}
+
 export async function stackNew(name) {
   const nameError = validateName(name);
   if (nameError) {
@@ -49,20 +65,38 @@ export async function stackNew(name) {
 
   const checks = [
     { cmd: 'git', label: 'git', url: 'https://git-scm.com/downloads' },
-    { cmd: 'python3', label: 'Python 3.12+', url: 'https://python.org/downloads' },
-    { cmd: 'node', label: 'Node 22+', url: 'https://nodejs.org' },
+    { cmd: 'python3', label: 'Python 3.12+', url: 'https://python.org/downloads', minMajor: 3, minMinor: 12 },
+    { cmd: 'node', label: 'Node 22+', url: 'https://nodejs.org', minMajor: 22, minMinor: 0 },
     { cmd: 'docker', label: 'Docker', url: 'https://docker.com/get-started' },
     { cmd: 'uv', label: 'uv (Python package manager)', url: 'https://docs.astral.sh/uv' },
   ];
 
-  let missing = [];
-  for (const { cmd, label, url } of checks) {
+  // Run all checks in parallel
+  const results = await Promise.all(checks.map(async ({ cmd, label, url, minMajor, minMinor }) => {
     const found = await checkCommand(cmd);
-    if (found) {
-      console.log(`  ${green('\u2713')} ${label}`);
+    if (!found) return { label, url, found: false };
+
+    // Version check if required
+    if (minMajor != null) {
+      const vStr = await getCommandVersion(cmd);
+      const ver = parseVersion(vStr);
+      if (ver && (ver.major < minMajor || (ver.major === minMajor && ver.minor < minMinor))) {
+        return { label, url, found: true, versionOk: false, version: vStr };
+      }
+    }
+    return { label, found: true, versionOk: true };
+  }));
+
+  let missing = [];
+  for (const r of results) {
+    if (!r.found) {
+      console.log(`  ${dim('\u2022')} ${dim(r.label)} ${dim(`\u2014 install: ${r.url}`)}`);
+      missing.push(r.label);
+    } else if (r.versionOk === false) {
+      console.log(`  ${yellow('\u25B3')} ${r.label} ${dim(`\u2014 found ${r.version}, need newer version`)}`);
+      missing.push(r.label);
     } else {
-      console.log(`  ${dim('\u2022')} ${dim(label)} ${dim(`\u2014 install: ${url}`)}`);
-      missing.push(label);
+      console.log(`  ${green('\u2713')} ${r.label}`);
     }
   }
   console.log();
@@ -85,7 +119,8 @@ export async function stackNew(name) {
   const spin = spinner(`Downloading SerpentStack template...`);
   try {
     await cloneRepo(dest);
-    spin.stop(success(`Template cloned into ${green(name)}/`));
+    spin.stop();
+    success(`Template cloned into ${green(name)}/`);
   } catch (err) {
     spin.stop();
     error(err.message);

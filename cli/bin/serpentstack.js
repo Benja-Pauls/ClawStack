@@ -2,13 +2,23 @@
 
 import { error, bold, dim, green, cyan, getVersion, printHeader } from '../lib/utils/ui.js';
 
-function parseFlags(args) {
+// Short flag aliases
+const FLAG_ALIASES = { f: 'force', h: 'help', v: 'version', a: 'all' };
+
+function parseArgs(args) {
   const flags = {};
   const positional = [];
   for (const arg of args) {
     if (arg.startsWith('--')) {
       const [key, val] = arg.slice(2).split('=');
       flags[key] = val ?? true;
+    } else if (arg.startsWith('-') && arg.length > 1 && !arg.startsWith('--')) {
+      // Short flags: -f, -h, -v, -a, or combined like -fa
+      for (const ch of arg.slice(1)) {
+        const long = FLAG_ALIASES[ch];
+        if (long) flags[long] = true;
+        else flags[ch] = true;
+      }
     } else {
       positional.push(arg);
     }
@@ -16,39 +26,73 @@ function parseFlags(args) {
   return { flags, positional };
 }
 
+// Known commands for fuzzy matching on typos
+const KNOWN_COMMANDS = ['stack', 'skills', 'persistent'];
+
+function suggestCommand(input) {
+  const lower = input.toLowerCase();
+  let best = null, bestDist = 3; // threshold: edit distance ≤ 2
+  for (const cmd of KNOWN_COMMANDS) {
+    if (cmd.startsWith(lower) || lower.startsWith(cmd)) return cmd;
+    const d = editDistance(lower, cmd);
+    if (d < bestDist) { bestDist = d; best = cmd; }
+  }
+  return best;
+}
+
+function editDistance(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + (a[i - 1] !== b[j - 1] ? 1 : 0),
+      );
+  return dp[m][n];
+}
+
 function showHelp() {
   printHeader();
   console.log(`  ${bold('Usage:')} serpentstack <command> [options]
 
-  ${bold(green('Stack commands'))} ${dim('(new projects)')}
-    ${cyan('stack new')} <name>              Scaffold a new project from the template
+  ${bold(green('New projects'))}
+    ${cyan('stack new')} <name>              Scaffold a full project from the template
     ${cyan('stack update')}                  Update template-level files to latest
 
-  ${bold(green('Skills commands'))} ${dim('(any project)')}
-    ${cyan('skills init')}                   Download base skills + persistent agent configs
+  ${bold(green('Any project'))}
+    ${cyan('skills')}                        Download base skills + persistent agent configs
     ${cyan('skills update')}                 Update base skills to latest versions
-    ${cyan('skills persistent')}             Guided setup: configure + install + start all agents
-    ${cyan('skills persistent')} --stop      Stop all running agents
+    ${cyan('persistent')}                    Manage and launch persistent agents
+    ${cyan('persistent')} --stop             Stop all running agents
+    ${cyan('persistent')} --reconfigure      Re-run setup (change models, enable/disable)
 
   ${bold('Options:')}
-    --force                       Overwrite existing files
-    --all                         Include new files in updates (skills update)
-    --version                     Show version
-    --help                        Show this help
+    -f, --force                   Overwrite existing files
+    -a, --all                     Include new files in updates (skills update)
+    -v, --version                 Show version
+    -h, --help                    Show this help
 
   ${dim('Examples:')}
     ${dim('$')} serpentstack stack new my-saas-app
-    ${dim('$')} serpentstack skills init
-    ${dim('$')} serpentstack skills persistent
-    ${dim('$')} serpentstack skills persistent --stop
+    ${dim('$')} serpentstack skills
+    ${dim('$')} serpentstack persistent
+    ${dim('$')} serpentstack persistent --stop
 
   ${dim('Docs: https://github.com/Benja-Pauls/SerpentStack')}
 `);
 }
 
 async function main() {
-  const [,, noun, verb, ...rest] = process.argv;
-  const { flags, positional } = parseFlags(rest);
+  const rawArgs = process.argv.slice(2);
+  const { flags, positional } = parseArgs(rawArgs);
+
+  const noun = positional[0];
+  const verb = positional[1];
+  const rest = positional.slice(2);
 
   // Top-level flags
   if (noun === '--version' || flags.version) {
@@ -63,7 +107,7 @@ async function main() {
   if (noun === 'stack') {
     if (verb === 'new') {
       const { stackNew } = await import('../lib/commands/stack-new.js');
-      await stackNew(positional[0]);
+      await stackNew(rest[0]);
     } else if (verb === 'update') {
       const { stackUpdate } = await import('../lib/commands/stack-update.js');
       await stackUpdate({ force: !!flags.force });
@@ -73,23 +117,29 @@ async function main() {
       process.exit(1);
     }
   } else if (noun === 'skills') {
-    if (verb === 'init') {
+    if (!verb || verb === 'init') {
+      // `serpentstack skills` or `serpentstack skills init` both work
       const { skillsInit } = await import('../lib/commands/skills-init.js');
       await skillsInit({ force: !!flags.force });
     } else if (verb === 'update') {
       const { skillsUpdate } = await import('../lib/commands/skills-update.js');
       await skillsUpdate({ force: !!flags.force, all: !!flags.all });
-    } else if (verb === 'persistent') {
-      const { skillsPersistent } = await import('../lib/commands/skills-persistent.js');
-      await skillsPersistent({ stop: !!flags.stop });
     } else {
       error(`Unknown skills command: ${verb}`);
-      console.log(`\n  Available: ${bold('skills init')}, ${bold('skills update')}, ${bold('skills persistent')}\n`);
+      console.log(`\n  Available: ${bold('skills')}, ${bold('skills update')}\n`);
       process.exit(1);
     }
+  } else if (noun === 'persistent') {
+    const { persistent } = await import('../lib/commands/persistent.js');
+    await persistent({ stop: !!flags.stop, reconfigure: !!flags.reconfigure });
   } else {
     error(`Unknown command: ${bold(noun)}`);
-    console.log(`\n  Run ${bold('serpentstack --help')} to see available commands.\n`);
+    const suggestion = suggestCommand(noun);
+    if (suggestion) {
+      console.log(`\n  Did you mean ${bold(suggestion)}? Run ${bold(`serpentstack ${suggestion}`)} or ${bold('serpentstack --help')}.\n`);
+    } else {
+      console.log(`\n  Run ${bold('serpentstack --help')} to see available commands.\n`);
+    }
     process.exit(1);
   }
 }
