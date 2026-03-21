@@ -4,13 +4,19 @@ import { downloadFile } from '../utils/github.js';
 import { safeWrite } from '../utils/fs-helpers.js';
 import { readConfig, writeConfig, detectTemplateDefaults, defaultAgentConfig } from '../utils/config.js';
 import { parseAgentMd, discoverAgents } from '../utils/agent-utils.js';
-import { info, success, warn, error, spinner, bold, dim, green, printBox, printPrompt, printHeader, fileStatus } from '../utils/ui.js';
+import { info, success, warn, error, spinner, bold, dim, green, cyan, divider, printBox, printPrompt, printHeader, fileStatus } from '../utils/ui.js';
 
 const SKILLS_FILES = [
+  '.skills/auth/SKILL.md',
+  '.skills/db-migrate/SKILL.md',
+  '.skills/deploy/SKILL.md',
+  '.skills/dev-server/SKILL.md',
   '.skills/find-skills/SKILL.md',
   '.skills/generate-skills/SKILL.md',
   '.skills/git-workflow/SKILL.md',
   '.skills/model-routing/SKILL.md',
+  '.skills/scaffold/SKILL.md',
+  '.skills/test/SKILL.md',
 ];
 
 const OPENCLAW_FILES = [
@@ -29,13 +35,9 @@ const MANIFEST = [...SKILLS_FILES, ...OPENCLAW_FILES, ...DOCS_FILES];
 export async function skillsInit({ force = false } = {}) {
   printHeader();
 
-  // Step 1: Download files
-  console.log(`  ${bold('Downloading')} ${dim('skills + persistent agent configs')}`);
-  console.log();
-
   const results = { created: 0, skipped: 0, overwritten: 0, unchanged: 0, failed: 0 };
   const logs = [];
-  const spin = spinner('Fetching from GitHub...');
+  const spin = spinner('Slithering through GitHub...');
 
   try {
     for (const repoPath of MANIFEST) {
@@ -55,24 +57,26 @@ export async function skillsInit({ force = false } = {}) {
   }
 
   // Group output by section
-  console.log(`  ${dim('IDE Agent Skills')}`);
+  divider('Skills');
   for (let i = 0; i < SKILLS_FILES.length; i++) logs[i] && console.log(logs[i]);
   console.log();
-  console.log(`  ${dim('Persistent Agent (OpenClaw)')}`);
+
+  divider('Persistent Agents');
   for (let i = SKILLS_FILES.length; i < SKILLS_FILES.length + OPENCLAW_FILES.length; i++) logs[i] && console.log(logs[i]);
   console.log();
-  console.log(`  ${dim('Documentation')}`);
+
+  divider('Docs');
   for (let i = SKILLS_FILES.length + OPENCLAW_FILES.length; i < logs.length; i++) logs[i] && console.log(logs[i]);
   console.log();
 
   // Summary line
   const parts = [];
   if (results.created > 0) parts.push(green(`${results.created} created`));
-  if (results.overwritten > 0) parts.push(`${results.overwritten} updated`);
+  if (results.overwritten > 0) parts.push(cyan(`${results.overwritten} updated`));
   if (results.unchanged > 0) parts.push(`${results.unchanged} up to date`);
   if (results.skipped > 0) parts.push(`${results.skipped} skipped`);
   if (results.failed > 0) parts.push(`${results.failed} failed`);
-  console.log(`  ${parts.join(dim(' \u2022 '))}`);
+  console.log(`  ${parts.join(dim(' · '))}`);
 
   if (results.failed === MANIFEST.length) {
     console.log();
@@ -108,17 +112,15 @@ export async function skillsInit({ force = false } = {}) {
     writeConfig(projectDir, config);
     console.log(`  ${fileStatus('.openclaw/config.json', 'created')}`);
     results.created++;
-    console.log();
   }
 
   // Next steps
   console.log();
-  console.log(`  ${bold('Next')} ${dim('\u2014 Generate project-specific skills')}`);
+  divider('What\'s next');
   console.log();
-  console.log(`  ${dim('Open your IDE agent (Claude Code, Cursor, Copilot, etc.)')}`);
-  console.log(`  ${dim('and paste the prompt below. The agent will read your codebase,')}`);
-  console.log(`  ${dim('interview you about your conventions, and produce a full')}`);
-  console.log(`  ${dim('.skills/ directory tailored to your project.')}`);
+  console.log(`  ${dim('Open your IDE agent (Claude Code, Cursor, Copilot, Gemini CLI, etc.)')}`);
+  console.log(`  ${dim('and paste this prompt. It reads your codebase and generates')}`);
+  console.log(`  ${dim('project-specific skills tailored to your stack.')}`);
 
   printPrompt([
     `Read .skills/generate-skills/SKILL.md and follow its instructions`,
@@ -133,11 +135,12 @@ export async function skillsInit({ force = false } = {}) {
     `Reference SKILL-AUTHORING.md for the format.`,
   ]);
 
-  printBox('After generating skills, try setting up persistent agents too', [
-    `${dim('$')} ${bold('serpentstack persistent')}  ${dim('# choose agents + launch')}`,
+  printBox('Want persistent background agents too?', [
+    `${dim('$')} ${bold('serpentstack persistent')}`,
     '',
-    `${dim('Background agents that watch your dev server, run tests,')}`,
-    `${dim('and keep your skills up to date. Each opens in its own')}`,
-    `${dim('terminal window. Pick which to run and choose your models.')}`,
+    `${dim('Agents that watch your dev server, run tests, and keep')}`,
+    `${dim('skills fresh — each in its own terminal. Pick which to')}`,
+    `${dim('run and choose local or cloud models.')}`,
   ]);
+  console.log();
 }

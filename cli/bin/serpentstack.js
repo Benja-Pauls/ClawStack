@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { error, bold, dim, green, cyan, getVersion, printHeader } from '../lib/utils/ui.js';
+import { error, bold, dim, green, cyan, yellow, getVersion, printHeader, divider } from '../lib/utils/ui.js';
 
 // Short flag aliases
 const FLAG_ALIASES = { f: 'force', h: 'help', v: 'version', a: 'all' };
@@ -57,33 +57,36 @@ function editDistance(a, b) {
 
 function showHelp() {
   printHeader();
-  console.log(`  ${bold('Usage:')} serpentstack <command> [options]
+  console.log(`  ${dim('Deployable fullstack templates + AI agent skills for any project')}`);
+  console.log();
 
-  ${bold(green('New projects'))}
-    ${cyan('stack new')} <name>              Scaffold a full project from the template
-    ${cyan('stack update')}                  Update template-level files to latest
+  divider('New projects');
+  console.log(`    ${cyan('stack new')} ${dim('<name>')}             Scaffold a full project from the template`);
+  console.log(`    ${cyan('stack update')}                  Update template-level files to latest`);
+  console.log();
 
-  ${bold(green('Any project'))}
-    ${cyan('skills')}                        Download base skills + persistent agent configs
-    ${cyan('skills update')}                 Update base skills to latest versions
-    ${cyan('persistent')}                    Manage and launch persistent agents
-    ${cyan('persistent')} --stop             Stop all running agents
-    ${cyan('persistent')} --reconfigure      Re-run setup (change models, enable/disable)
+  divider('Any project');
+  console.log(`    ${cyan('skills')}                        Download all skills + persistent agent configs`);
+  console.log(`    ${cyan('skills update')}                 Update base skills to latest versions`);
+  console.log(`    ${cyan('persistent')}                    Manage and launch persistent background agents`);
+  console.log(`    ${cyan('persistent')} ${dim('--stop')}            Stop all running agents`);
+  console.log(`    ${cyan('persistent')} ${dim('--reconfigure')}     Change models, enable/disable agents`);
+  console.log();
 
-  ${bold('Options:')}
-    -f, --force                   Overwrite existing files
-    -a, --all                     Include new files in updates (skills update)
-    -v, --version                 Show version
-    -h, --help                    Show this help
+  divider('Options');
+  console.log(`    ${bold('-f')}, ${bold('--force')}                   Overwrite existing files`);
+  console.log(`    ${bold('-a')}, ${bold('--all')}                     Include new files in updates`);
+  console.log(`    ${bold('-v')}, ${bold('--version')}                 Show version`);
+  console.log(`    ${bold('-h')}, ${bold('--help')}                    Show this help`);
+  console.log();
 
-  ${dim('Examples:')}
-    ${dim('$')} serpentstack stack new my-saas-app
-    ${dim('$')} serpentstack skills
-    ${dim('$')} serpentstack persistent
-    ${dim('$')} serpentstack persistent --stop
-
-  ${dim('Docs: https://github.com/Benja-Pauls/SerpentStack')}
-`);
+  console.log(`  ${dim('Examples:')}`);
+  console.log(`    ${dim('$')} serpentstack stack new my-saas-app`);
+  console.log(`    ${dim('$')} serpentstack skills`);
+  console.log(`    ${dim('$')} serpentstack persistent`);
+  console.log();
+  console.log(`  ${dim('Docs:')} ${cyan('https://github.com/Benja-Pauls/SerpentStack')}`);
+  console.log();
 }
 
 async function main() {

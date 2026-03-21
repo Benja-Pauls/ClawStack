@@ -1,7 +1,7 @@
 ---
 name: log-watcher
 description: Watches dev server logs for errors and proposes fixes
-model: anthropic/claude-haiku-4-20250414
+model: ollama/llama3.2
 schedule:
   - every: 30s
     task: dev-server-health

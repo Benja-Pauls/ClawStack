@@ -21,60 +21,85 @@ export async function detectModels() {
 }
 
 /**
- * Detect locally installed Ollama models with parameter counts.
- * Parses `ollama list` output.
+ * Detect locally installed Ollama models via the REST API.
+ * GET http://localhost:11434/api/tags returns structured JSON with real
+ * parameter counts, sizes, and quantization levels — no CLI parsing needed.
  */
 async function detectOllamaModels() {
   try {
-    const output = await execAsync('ollama', ['list']);
-    const lines = output.trim().split('\n');
-    if (lines.length < 2) return []; // header only
+    const response = await fetchWithTimeout('http://localhost:11434/api/tags', 3000);
+    if (!response.ok) return [];
 
-    // Parse header to find column positions
-    const header = lines[0];
-    const nameEnd = header.indexOf('ID');
-    const sizeStart = header.indexOf('SIZE');
+    const data = await response.json();
+    if (!data.models || !Array.isArray(data.models)) return [];
 
-    return lines.slice(1).map(line => {
-      if (!line.trim()) return null;
-
-      const name = line.slice(0, nameEnd).trim();
+    return data.models.map(m => {
+      const name = (m.name || '').replace(':latest', '');
       if (!name) return null;
 
-      // Extract size (e.g., "4.7 GB", "1.3 GB")
-      const sizeStr = sizeStart >= 0 ? line.slice(sizeStart).trim().split(/\s{2,}/)[0] : '';
-
-      // Estimate parameter count from model name (e.g., "llama3.2:3b", "qwen2.5-coder:7b")
-      const paramMatch = name.match(/[:\-](\d+\.?\d*)[bB]/);
-      const params = paramMatch ? paramMatch[1] + 'B' : guessParams(name, sizeStr);
-
-      const shortName = name.replace(':latest', '');
+      // Use the real parameter count from the API when available
+      const details = m.details || {};
+      const params = formatParamCount(details.parameter_size) || guessParamsFromSize(m.size);
+      const quant = details.quantization_level || '';
+      const sizeStr = formatBytes(m.size);
 
       return {
-        id: `ollama/${shortName}`,
-        name: shortName,
+        id: `ollama/${name}`,
+        name,
         params,
+        quant,
         size: sizeStr,
         tier: 'local',
       };
     }).filter(Boolean);
   } catch {
+    // Ollama not running or not installed
     return [];
   }
 }
 
 /**
- * Guess parameter count from file size if not in the name.
+ * Format parameter count from Ollama API (e.g., "7B", "3.2B", "70B").
+ * The API returns strings like "7B", "3.21B", etc. in details.parameter_size.
+ */
+function formatParamCount(paramSize) {
+  if (!paramSize) return '';
+  // Already formatted like "7B" or "3.2B"
+  const s = String(paramSize).trim();
+  if (/^\d+\.?\d*[BbMm]$/i.test(s)) return s.toUpperCase();
+  return s;
+}
+
+/**
+ * Fallback: estimate parameter count from file size.
  * Rough heuristic: ~0.5GB per billion parameters for Q4 quantization.
  */
-function guessParams(name, sizeStr) {
-  const gbMatch = sizeStr.match(/([\d.]+)\s*GB/i);
-  if (gbMatch) {
-    const gb = parseFloat(gbMatch[1]);
-    const billions = Math.round(gb * 2); // Q4 ≈ 0.5GB/B
-    if (billions > 0) return `~${billions}B`;
-  }
+function guessParamsFromSize(bytes) {
+  if (!bytes || bytes <= 0) return '';
+  const gb = bytes / (1024 ** 3);
+  const billions = Math.round(gb * 2); // Q4 ≈ 0.5GB/B
+  if (billions > 0) return `~${billions}B`;
   return '';
+}
+
+/**
+ * Format bytes into human-readable size (e.g., "4.7 GB").
+ */
+function formatBytes(bytes) {
+  if (!bytes || bytes <= 0) return '';
+  const gb = bytes / (1024 ** 3);
+  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  const mb = bytes / (1024 ** 2);
+  return `${Math.round(mb)} MB`;
+}
+
+/**
+ * Fetch with timeout using AbortController (Node 18+).
+ */
+function fetchWithTimeout(url, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timeout));
 }
 
 /**

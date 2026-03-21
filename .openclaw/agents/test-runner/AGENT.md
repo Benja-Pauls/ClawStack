@@ -1,7 +1,7 @@
 ---
 name: test-runner
 description: Runs tests on schedule, catches regressions, reports failures with context
-model: anthropic/claude-haiku-4-20250414
+model: ollama/llama3.2
 schedule:
   - every: 5m
     task: run-tests

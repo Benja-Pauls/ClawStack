@@ -1,7 +1,7 @@
 ---
 name: skill-maintainer
 description: Detects when skills go stale and proposes updates to keep them accurate
-model: anthropic/claude-sonnet-4-20250514
+model: ollama/llama3.2
 schedule:
   - every: 1h
     task: check-skill-freshness

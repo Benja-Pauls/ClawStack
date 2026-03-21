@@ -164,7 +164,7 @@ function generateHeartbeat(schedule) {
 }
 
 function generateAgentsConfig(meta) {
-  const model = meta.model || 'anthropic/claude-haiku-4-20250414';
+  const model = meta.model || 'ollama/llama3.2';
   const tools = meta.tools || ['file-system', 'shell', 'git'];
 
   return [

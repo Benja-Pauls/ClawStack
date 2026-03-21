@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 import { execFile, spawn } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
-import { info, success, warn, error, bold, dim, green, cyan, yellow, red, printBox, printHeader } from '../utils/ui.js';
+import { info, success, warn, error, bold, dim, green, cyan, yellow, red, divider, printBox, printHeader } from '../utils/ui.js';
 import {
   parseAgentMd,
   discoverAgents,
@@ -53,7 +53,7 @@ async function pickModel(rl, agentName, currentModel, available) {
 
   // Local models first (free, fast, recommended)
   if (available.local.length > 0) {
-    console.log(`    ${dim('\u2500\u2500 Local models (free, no API key needed) \u2500\u2500')}`);
+    console.log(`    ${dim('── Local')} ${green('free')} ${dim('──────────────────────')}`);
     for (const m of available.local) {
       const isCurrent = m.id === currentModel;
       const idx = choices.length;
@@ -62,16 +62,17 @@ async function pickModel(rl, agentName, currentModel, available) {
       const num = dim(`${idx + 1}.`);
       const label = isCurrent ? bold(m.name) : m.name;
       const params = m.params ? dim(` ${m.params}`) : '';
+      const quant = m.quant ? dim(` ${m.quant}`) : '';
       const size = m.size ? dim(` (${m.size})`) : '';
       const tag = isCurrent ? green(' \u2190 current') : '';
-      console.log(`  ${marker} ${num} ${label}${params}${size}${tag}`);
+      console.log(`  ${marker} ${num} ${label}${params}${quant}${size}${tag}`);
     }
   }
 
   // Cloud models (require API key, cost money)
   if (available.cloud.length > 0) {
-    const apiNote = available.hasApiKey ? dim('API key configured') : yellow('requires API key');
-    console.log(`    ${dim('\u2500\u2500 Cloud models')} (${apiNote}) ${dim('\u2500\u2500')}`);
+    const apiNote = available.hasApiKey ? green('key ✓') : yellow('needs API key');
+    console.log(`    ${dim('── Cloud')} ${apiNote} ${dim('─────────────────────')}`);
     for (const m of available.cloud) {
       const isCurrent = m.id === currentModel;
       const idx = choices.length;
@@ -225,11 +226,11 @@ function printAgentLine(name, agentMd, config, statusInfo) {
   const modelStr = modelShortName(model);
 
   if (statusInfo.status === 'running') {
-    console.log(`  ${green('\u25CF')} ${bold(name)}  ${dim(modelStr)}  ${dim(schedule)}  ${green(`PID ${statusInfo.pid}`)}`);
+    console.log(`    ${green('●')} ${bold(name)}  ${dim(modelStr)}  ${dim(schedule)}  ${green(`PID ${statusInfo.pid}`)}`);
   } else if (statusInfo.status === 'disabled') {
-    console.log(`  ${dim('\u25CB')} ${dim(name)}  ${dim(modelStr)}  ${dim(schedule)}  ${dim('disabled')}`);
+    console.log(`    ${dim('○')} ${dim(name)}  ${dim(modelStr)}  ${dim(schedule)}  ${dim('disabled')}`);
   } else {
-    console.log(`  ${yellow('\u25CB')} ${bold(name)}  ${dim(modelStr)}  ${dim(schedule)}  ${dim('stopped')}`);
+    console.log(`    ${yellow('○')} ${bold(name)}  ${dim(modelStr)}  ${dim(schedule)}  ${dim('ready')}`);
   }
 }
 
@@ -305,8 +306,8 @@ export async function persistent({ stop = false, reconfigure = false } = {}) {
 
   // ── If configured, show status dashboard ──
   if (!needsSetup) {
-    console.log(`  ${bold(config.project.name)} ${dim(`\u2014 ${config.project.framework}`)}`);
-    console.log(`  ${dim(`Dev: ${config.project.devCmd} \u2022 Test: ${config.project.testCmd}`)}`);
+    console.log(`  ${bold(config.project.name)} ${dim(`— ${config.project.framework}`)}`);
+    console.log(`  ${dim(`Dev: ${config.project.devCmd} · Test: ${config.project.testCmd}`)}`);
     console.log();
 
     for (const { name, agentMd } of parsed) {
@@ -363,12 +364,12 @@ export async function persistent({ stop = false, reconfigure = false } = {}) {
     };
 
     if (templateDefaults && !existing.name) {
-      info('Detected SerpentStack template \u2014 defaults pre-filled');
+      info('Detected SerpentStack template — defaults pre-filled');
       console.log();
     }
 
-    console.log(`  ${bold('Project')}`);
-    console.log(`  ${dim('Press Enter to keep current values.')}`);
+    divider('Project');
+    console.log(`  ${dim('Press Enter to keep defaults.')}`);
     console.log();
 
     config.project = {
@@ -417,14 +418,14 @@ export async function persistent({ stop = false, reconfigure = false } = {}) {
     }
     console.log();
 
-    console.log(`  ${bold('Agents')}`);
-    console.log(`  ${dim('Enable/disable each agent and choose its model.')}`);
+    divider('Agents');
+    console.log(`  ${dim('Enable/disable each agent and pick a model.')}`);
     console.log();
 
     for (const { name, agentMd } of parsed) {
       const existingAgent = config.agents?.[name];
       const currentEnabled = existingAgent?.enabled !== false;
-      const currentModel = existingAgent?.model || agentMd.meta.model || 'anthropic/claude-haiku-4-20250414';
+      const currentModel = existingAgent?.model || 'ollama/llama3.2';
       const schedule = (agentMd.meta.schedule || []).map(s => s.every).join(', ');
 
       console.log(`  ${bold(name)}  ${dim(agentMd.meta.description || '')}`);
@@ -481,7 +482,7 @@ async function launchAgents(projectDir, agentsToStart, config, soulPath) {
   const toStart = [];
 
   try {
-    console.log(`  ${dim('Select agents to launch:')}`);
+    divider('Launch');
     console.log();
 
     for (const agent of agentsToStart) {
@@ -548,12 +549,12 @@ async function launchAgents(projectDir, agentsToStart, config, soulPath) {
 
   console.log();
   if (started > 0) {
-    success(`${started} agent(s) launched`);
+    success(`${started} agent(s) launched — fangs out 🐍`);
     console.log();
     printBox('Manage agents', [
-      `${dim('$')} ${bold('serpentstack persistent')}                ${dim('# status + start agents')}`,
-      `${dim('$')} ${bold('serpentstack persistent --stop')}         ${dim('# stop all agents')}`,
-      `${dim('$')} ${bold('serpentstack persistent --reconfigure')}  ${dim('# change models, enable/disable')}`,
+      `${dim('$')} ${bold('serpentstack persistent')}                ${dim('# status + start')}`,
+      `${dim('$')} ${bold('serpentstack persistent --stop')}         ${dim('# stop all')}`,
+      `${dim('$')} ${bold('serpentstack persistent --reconfigure')}  ${dim('# change models')}`,
     ]);
   }
 }

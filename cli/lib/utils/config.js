@@ -3,12 +3,16 @@ import { join } from 'node:path';
 
 const CONFIG_PATH = '.openclaw/config.json';
 
+// Default model for persistent agents — local first, always.
+// Cloud models cost tokens per heartbeat and require API keys.
+const DEFAULT_MODEL = 'ollama/llama3.2';
+
 /**
  * Default config structure:
  * {
  *   project: { name, language, framework, devCmd, testCmd, conventions },
  *   agents: {
- *     "log-watcher": { enabled: true, model: "anthropic/claude-haiku-4-20250414" },
+ *     "log-watcher": { enabled: true, model: "ollama/llama3.2" },
  *     ...
  *   }
  * }
@@ -49,9 +53,9 @@ export function detectTemplateDefaults(projectDir) {
 
   try {
     const content = readFileSync(makefile, 'utf8');
-    // SerpentStack Makefile: must have 'make verify' AND either 'uv run' or 'uvicorn'
-    if (!content.includes('make verify')) return null;
-    if (!content.includes('uv run') && !content.includes('uvicorn')) return null;
+    // SerpentStack Makefile: must have a 'verify:' target AND 'uv run' (Python tooling)
+    if (!/^verify:/m.test(content)) return null;
+    if (!content.includes('uv run')) return null;
 
     // It's a SerpentStack template project — return smart defaults
     const defaults = {
@@ -83,7 +87,7 @@ export function detectTemplateDefaults(projectDir) {
 export function defaultAgentConfig(meta) {
   return {
     enabled: true,
-    model: meta.model || 'anthropic/claude-haiku-4-20250414',
+    model: DEFAULT_MODEL,
   };
 }
 
@@ -94,7 +98,7 @@ export function getEffectiveModel(agentName, agentMeta, config) {
   if (config?.agents?.[agentName]?.model) {
     return config.agents[agentName].model;
   }
-  return agentMeta.model || 'anthropic/claude-haiku-4-20250414';
+  return DEFAULT_MODEL;
 }
 
 /**

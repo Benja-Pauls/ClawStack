@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { cloneRepo, checkGit } from '../utils/github.js';
-import { info, success, warn, error, spinner, bold, dim, green, cyan, printBox, printPrompt, printHeader } from '../utils/ui.js';
+import { info, success, warn, error, spinner, bold, dim, green, yellow, cyan, divider, printBox, printPrompt, printHeader } from '../utils/ui.js';
 
 const CLEANUP_PATHS = [
   'cli',
@@ -60,7 +60,7 @@ export async function stackNew(name) {
   printHeader();
 
   // Step 1: Check prerequisites
-  console.log(`  ${bold('Step 1/4')} ${dim('\u2014 Checking prerequisites')}`);
+  divider('Prerequisites');
   console.log();
 
   const checks = [
@@ -90,13 +90,13 @@ export async function stackNew(name) {
   let missing = [];
   for (const r of results) {
     if (!r.found) {
-      console.log(`  ${dim('\u2022')} ${dim(r.label)} ${dim(`\u2014 install: ${r.url}`)}`);
+      console.log(`    ${dim('○')} ${dim(r.label)} ${dim(`— install: ${r.url}`)}`);
       missing.push(r.label);
     } else if (r.versionOk === false) {
-      console.log(`  ${yellow('\u25B3')} ${r.label} ${dim(`\u2014 found ${r.version}, need newer version`)}`);
+      console.log(`    ${yellow('△')} ${r.label} ${dim(`— found ${r.version}, need newer version`)}`);
       missing.push(r.label);
     } else {
-      console.log(`  ${green('\u2713')} ${r.label}`);
+      console.log(`    ${green('✓')} ${r.label}`);
     }
   }
   console.log();
@@ -113,10 +113,10 @@ export async function stackNew(name) {
   }
 
   // Step 2: Clone template
-  console.log(`  ${bold('Step 2/4')} ${dim('\u2014 Cloning template')}`);
+  divider('Clone');
   console.log();
 
-  const spin = spinner(`Downloading SerpentStack template...`);
+  const spin = spinner('Slithering through GitHub...');
   try {
     await cloneRepo(dest);
     spin.stop();
@@ -129,7 +129,7 @@ export async function stackNew(name) {
 
   // Step 3: Clean up repo-specific files
   console.log();
-  console.log(`  ${bold('Step 3/4')} ${dim('\u2014 Preparing project')}`);
+  divider('Prepare');
   console.log();
 
   for (const p of CLEANUP_PATHS) {
@@ -150,16 +150,16 @@ export async function stackNew(name) {
 
   // Step 4: Summary
   console.log();
-  console.log(`  ${bold('Step 4/4')} ${dim('\u2014 Done!')}`);
+  divider('Ready 🐍');
   console.log();
 
   console.log(`  ${dim('Your project includes:')}`);
-  console.log(`  ${green('\u2713')} FastAPI backend ${dim('(async SQLAlchemy, JWT auth, ownership enforcement)')}`);
-  console.log(`  ${green('\u2713')} React frontend ${dim('(TypeScript, Vite, shadcn/ui)')}`);
-  console.log(`  ${green('\u2713')} PostgreSQL + Redis ${dim('(Docker Compose)')}`);
-  console.log(`  ${green('\u2713')} Terraform infrastructure ${dim('(AWS App Runner, RDS, ECR)')}`);
-  console.log(`  ${green('\u2713')} 10 project-specific Agent Skills ${dim('(.skills/)')}`);
-  console.log(`  ${green('\u2713')} Persistent agent configs ${dim('(.openclaw/)')}`);
+  console.log(`    ${green('✓')} FastAPI backend ${dim('(async SQLAlchemy, JWT auth, ownership)')}`);
+  console.log(`    ${green('✓')} React frontend ${dim('(TypeScript, Vite, shadcn/ui)')}`);
+  console.log(`    ${green('✓')} PostgreSQL + Redis ${dim('(Docker Compose)')}`);
+  console.log(`    ${green('✓')} Terraform infrastructure ${dim('(AWS App Runner, RDS, ECR)')}`);
+  console.log(`    ${green('✓')} 10 agent skills ${dim('(.skills/)')}`);
+  console.log(`    ${green('✓')} Persistent agent configs ${dim('(.openclaw/)')}`);
   console.log();
 
   printBox('Get started', [
