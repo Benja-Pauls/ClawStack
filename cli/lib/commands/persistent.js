@@ -315,10 +315,12 @@ async function pickModel(rl, agentName, currentModel, available) {
     return currentModel;
   }
 
-  // If current model isn't in any list, add it at the top
+  // If current model isn't in any list, append it at the end (never unshift — it breaks numbering)
   if (!choices.some(c => c.id === currentModel)) {
-    choices.unshift({ id: currentModel, name: modelShortName(currentModel), tier: 'custom', action: 'use' });
-    console.log(`    ${dim(`Current: ${modelShortName(currentModel)} (not in detected models)`)}`);
+    const idx = choices.length;
+    choices.push({ id: currentModel, name: modelShortName(currentModel), tier: 'custom', action: 'use' });
+    console.log(`    ${dim('── Current ─────────────────────────')}`);
+    console.log(`  ${green('>')} ${dim(`${idx + 1}.`)} ${bold(modelShortName(currentModel))} ${dim('(not installed)')} ${green('← current')}`);
   }
 
   const currentIdx = choices.findIndex(c => c.id === currentModel);
@@ -799,7 +801,7 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
           '--model', effectiveModel,
           '--non-interactive',
         ]);
-        success(`${green('✓')} Registered ${bold(name)} ${dim(`(${modelShortName(effectiveModel)})`)}`);
+        success(`Registered ${bold(name)} ${dim(`(${modelShortName(effectiveModel)})`)}`);
       } catch (err) {
         // Agent may already exist — that's fine
         if (err.message && err.message.includes('already exists')) {
@@ -816,6 +818,7 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
           await execPromise('openclaw', [
             'cron', 'add',
             '--agent', name,
+            '--model', effectiveModel,
             '--every', sched.every,
             '--message', `Run task: ${sched.task}`,
             '--name', `${name}-${sched.task}`,

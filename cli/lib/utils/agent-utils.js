@@ -250,6 +250,9 @@ export function listPids(projectDir) {
  * Check if a process is alive.
  */
 export function isProcessAlive(pid) {
+  // PID -1 is a marker for "terminal-managed" — we can't check those.
+  // process.kill(-1, 0) sends to ALL processes, always succeeds — never use it.
+  if (!pid || pid <= 0) return false;
   try {
     process.kill(pid, 0);
     return true;
