@@ -777,7 +777,7 @@ function isModelAvailable(modelId, available) {
   return false;
 }
 
-async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw, available) {
+async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
   if (!hasOpenClaw) {
     error('Cannot launch agents — OpenClaw is not installed.');
     console.log(`    ${dim('$')} ${bold('npm install -g openclaw@latest')}`);
@@ -793,6 +793,9 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw, avail
     console.log();
     return;
   }
+
+  // Re-detect models fresh (Ollama may have been installed during --agents flow)
+  const available = await detectModels();
 
   // Check model availability for each agent BEFORE launching
   const launchable = [];
@@ -923,8 +926,11 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw, avail
       const workspacePath = generateWorkspace(projectDir, name, overriddenMd, sharedSoul);
       const absWorkspace = resolve(workspacePath);
 
-      // Register agent with OpenClaw
+      // Register agent with OpenClaw (delete + re-add to ensure correct model)
       try {
+        // Remove existing registration if any (best-effort)
+        await execPromise('openclaw', ['agents', 'delete', name]).catch(() => {});
+
         await execPromise('openclaw', [
           'agents', 'add', name,
           '--workspace', absWorkspace,
@@ -933,14 +939,8 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw, avail
         ]);
         success(`Registered ${bold(name)} ${dim(`(${modelShortName(effectiveModel)})`)}`);
       } catch (err) {
-        const msg = err.message || '';
-        if (msg.includes('already exists') || msg.includes('already')) {
-          // Try to update the model on an existing agent
-          info(`${bold(name)} already registered — updating model`);
-        } else {
-          warn(`Could not register ${bold(name)}: ${msg}`);
-          continue;
-        }
+        warn(`Could not register ${bold(name)}: ${err.message || 'unknown error'}`);
+        continue;
       }
 
       // Add cron jobs for the agent's schedule
@@ -1031,7 +1031,7 @@ export async function persistent({ stop = false, configure = false, agents = fal
 
   // ── --start: launch agents ──
   if (start) {
-    await runStart(projectDir, parsed, config, soulPath, hasOpenClaw, available);
+    await runStart(projectDir, parsed, config, soulPath, hasOpenClaw);
     return;
   }
 
@@ -1091,7 +1091,7 @@ export async function persistent({ stop = false, configure = false, agents = fal
 
   // Step 3: Launch (only if OpenClaw is installed)
   if (canLaunch) {
-    await runStart(projectDir, parsed, config, soulPath, hasOpenClaw, available);
+    await runStart(projectDir, parsed, config, soulPath, hasOpenClaw);
   } else {
     console.log();
     info('Skipping launch — install OpenClaw first, then run:');

@@ -10,19 +10,26 @@
 </p>
 
 <p align="center">
+  <strong>The open-source AI team framework.</strong><br>
+  <em>IDE agents that know your codebase. Background agents that never stop working.</em>
+</p>
+
+<p align="center">
   <a href="#existing-project">Existing Project</a> &nbsp;&middot;&nbsp;
   <a href="#new-project">New Project</a> &nbsp;&middot;&nbsp;
+  <a href="#the-ai-team">The AI Team</a> &nbsp;&middot;&nbsp;
   <a href="#what-gets-installed">What Gets Installed</a> &nbsp;&middot;&nbsp;
-  <a href="#persistent-agents">Persistent Agents</a> &nbsp;&middot;&nbsp;
   <a href="#cli-reference">CLI Reference</a> &nbsp;&middot;&nbsp;
   <a href="#template-reference">Template Reference</a>
 </p>
 
 ---
 
-Generic skills teach agents how to code. Project-specific skills teach agents how to code **like your team does** — your transaction patterns, your auth conventions, your ownership enforcement, your test infrastructure. There are thousands of generic skills in [marketplaces](https://github.com/anthropics/skills). None of them know your codebase.
+Your IDE agent writes code when you ask. But who catches the error at 2am? Who notices the test that started failing three commits ago? Who flags that your skills drifted from the actual codebase?
 
-SerpentStack is the open-source standard for AI-driven development. It gives your IDE agents project-specific skills so they write code matching your conventions, and configures persistent background agents ([OpenClaw](https://docs.openclaw.ai)) that continuously watch your dev server, catch errors, run tests, and maintain those skills as your project evolves.
+**An AI team does.**
+
+SerpentStack is the open-source framework for building AI development teams — not just a single agent you talk to, but a coordinated group of specialists that work alongside you. IDE agents that understand your project's exact conventions. Background agents that watch, test, and maintain your codebase around the clock. All running on local models by default, so it costs nothing.
 
 ```bash
 npm install -g serpentstack    # requires Node 22+
@@ -32,7 +39,7 @@ npm install -g serpentstack    # requires Node 22+
 
 ## Existing Project
 
-Add AI-driven development standards to any codebase in three steps.
+Add an AI team to any codebase in three steps.
 
 ### 1. Initialize
 
@@ -41,23 +48,30 @@ cd your-project
 serpentstack skills
 ```
 
-This downloads base skills, persistent agent configs, and a skill-authoring guide into your project. See [What Gets Installed](#what-gets-installed) for the full list.
+Downloads skills, persistent agent configs, and auto-detects your project settings. If your project has a `package.json`, `Makefile`, `pyproject.toml`, or similar, SerpentStack will pre-fill your language, framework, dev commands, and conventions automatically. See [What Gets Installed](#what-gets-installed) for the full list.
 
 ### 2. Generate project-specific skills
 
-Open your IDE agent (Claude Code, Cursor, Copilot, etc.) and paste this prompt:
+Open your IDE agent (Claude Code, Cursor, Copilot, Gemini CLI, etc.) and paste this prompt:
 
 > Read `.skills/generate-skills/SKILL.md` and follow its instructions to generate project-specific skills for this codebase. Interview me about my architecture decisions — how I handle transactions, auth, error patterns, testing strategy, and deployment. Ask about the business domain too: what this app does, key user flows, and where agents are most likely to make mistakes. Write each skill as a `SKILL.md` with complete templates an agent can copy, not vague descriptions. Reference `SKILL-AUTHORING.md` for the format.
 
 The agent reads your codebase, asks 5-8 rounds of questions about your conventions, and produces a full `.skills/` directory tailored to your project.
 
-### 3. Start persistent agents
+### 3. Start your AI team
 
 ```bash
-serpentstack persistent                   # configure + select agents + launch
+serpentstack persistent
 ```
 
-Walks you through configuring your project, lets you choose which agents to enable and what model each uses (cloud or local), then opens each agent in its own terminal window. They watch your dev server, catch errors before you see them, run tests on a schedule, and flag when skills go stale. Your choices are saved to `.openclaw/config.json` so re-runs skip the questions. See [Persistent Agents](#persistent-agents) for details.
+Walks you through a guided setup:
+1. **Project config** — confirms your project name, language, framework, and commands (auto-detected defaults, just hit Enter)
+2. **System assessment** — checks your RAM and recommends model sizes
+3. **Agent selection** — shows what each agent does, lets you enable/disable and pick models
+4. **Model install** — if you pick a local model and Ollama isn't installed, SerpentStack installs it for you and downloads the model automatically
+5. **Launch** — registers agents with [OpenClaw](https://docs.openclaw.ai), starts the gateway, and your team begins working
+
+Your choices are saved to `.openclaw/config.json`. Subsequent runs show a status dashboard.
 
 ### Keep updated
 
@@ -69,7 +83,7 @@ serpentstack skills update    # updates base skills + configs to latest versions
 
 ## New Project
 
-Scaffold a production-ready fullstack app with skills and persistent agent configs already written.
+Scaffold a production-ready fullstack app with a full AI team already configured.
 
 ```bash
 serpentstack stack new my-app
@@ -91,32 +105,92 @@ See [Template Reference](#template-reference) for the full stack details, patter
 
 ---
 
+## The AI Team
+
+Most AI coding tools give you one agent that helps when you ask. SerpentStack gives you a team that works when you don't.
+
+### Two layers, one standard
+
+| | IDE Agents (your pair programmer) | Background Agents (your team) |
+|---|---|---|
+| **What they do** | Write code when you ask, following your project's specific patterns | Watch, test, and maintain your codebase continuously |
+| **Standard** | [Agent Skills](https://agentskills.io/home) (`SKILL.md`) | [OpenClaw](https://docs.openclaw.ai) (`AGENT.md`) |
+| **Tools** | Claude Code, Codex, Cursor, Copilot, Gemini CLI | OpenClaw gateway with scheduled tasks |
+| **Directory** | `.skills/` | `.openclaw/agents/` |
+| **Models** | Whatever your IDE uses | Local by default (free via Ollama), cloud optional |
+
+Both are plain text. Both are version-controlled. Neither requires vendor lock-in.
+
+### The default team
+
+```
+.openclaw/
+  SOUL.md                              # shared project identity all agents inherit
+  config.json                          # project settings + per-agent model config
+  agents/
+    log-watcher/AGENT.md               # watches dev server, scans logs (every 30-60s)
+    test-runner/AGENT.md               # runs tests, lint, typecheck (every 5-15min)
+    skill-maintainer/AGENT.md          # detects stale skills (every 1hr)
+```
+
+**Log Watcher** — Monitors your dev server health and log output every 30-60 seconds. Catches backend crashes, frontend build errors, and import failures. Reports them with file paths and suggested fixes before you even notice something is wrong.
+
+**Test Runner** — Runs your test suite every 5 minutes and lint/typecheck every 15 minutes. Catches regressions before you commit. Shows which test failed, what changed, and whether the test or the source needs fixing.
+
+**Skill Maintainer** — Checks every hour whether your `.skills/` files still match the actual codebase. When code patterns drift from what skills describe, it proposes exact updates so every IDE agent stays accurate.
+
+### Local-first, zero cost by default
+
+Persistent agents default to local models via [Ollama](https://ollama.com). SerpentStack auto-installs Ollama and downloads models for you during setup — no API keys, no token costs, no cloud dependency. The CLI shows your system's RAM and recommends model sizes that fit.
+
+Cloud models (via OpenClaw API keys) are available as an option for users who want them, with clear warnings about per-heartbeat token costs.
+
+### Build your own team
+
+Add an agent by creating `.openclaw/agents/<name>/AGENT.md` with YAML frontmatter:
+
+```yaml
+---
+name: deploy-watcher
+description: Monitors deployment health after every push
+model: ollama/llama3.2
+schedule:
+  - every: 5m
+    task: check-deployment-health
+tools:
+  - file-system
+  - shell
+---
+
+# Deploy Watcher Agent
+
+Your instructions here...
+```
+
+Remove an agent by deleting its folder. Each agent gets its own model, schedule, and instructions.
+
+---
+
 ## What Gets Installed
 
 ### `serpentstack skills` downloads:
 
 | File | What it does |
 |---|---|
-| `.skills/generate-skills/SKILL.md` | Interviews you about your codebase conventions and produces a full `.skills/` directory tailored to your project |
-| `.skills/model-routing/SKILL.md` | Delegate code generation to on-device models (Ollama) while keeping cloud models for orchestration — 10-50x cost reduction |
-| `.skills/find-skills/SKILL.md` | How to discover community skills, evaluate them, create new project-specific ones |
+| `.skills/auth/SKILL.md` | Auth patterns — `get_current_user`, JWT, ownership enforcement, SSO swap |
+| `.skills/db-migrate/SKILL.md` | Alembic workflow — create, review, apply, rollback, seed data |
+| `.skills/deploy/SKILL.md` | Docker build, ECR push, Terraform plan/apply, health checks, rollback |
+| `.skills/dev-server/SKILL.md` | Error detection patterns for backend (structured JSON) and frontend (Vite/React) |
+| `.skills/find-skills/SKILL.md` | Discover community skills, evaluate them, create new project-specific ones |
+| `.skills/generate-skills/SKILL.md` | Interviews you and produces a full `.skills/` directory tailored to your project |
 | `.skills/git-workflow/SKILL.md` | Branch naming, conventional commits, PR format, pre-push checklist |
-| `.openclaw/SOUL.md` | Shared project identity — architecture, conventions, and patterns all agents inherit |
-| `.openclaw/agents/log-watcher/AGENT.md` | Watches dev server health and scans logs for errors (Haiku, every 30-60s) |
-| `.openclaw/agents/test-runner/AGENT.md` | Runs tests on schedule, catches regressions (Haiku, every 5-15min) |
-| `.openclaw/agents/skill-maintainer/AGENT.md` | Detects stale skills and proposes updates (Sonnet, every 1hr) |
+| `.skills/model-routing/SKILL.md` | Delegate to on-device models (Ollama) for cost reduction |
+| `.skills/scaffold/SKILL.md` | Full end-to-end resource generation — model through frontend |
+| `.skills/test/SKILL.md` | Real Postgres via testcontainers, savepoint-rollback isolation |
+| `.openclaw/SOUL.md` | Shared project identity — all agents inherit this |
+| `.openclaw/agents/*/AGENT.md` | Three background agents (log-watcher, test-runner, skill-maintainer) |
+| `.openclaw/config.json` | Project settings + per-agent model config (auto-detected defaults) |
 | `SKILL-AUTHORING.md` | Reference guide for writing project-specific skills by hand |
-
-### `serpentstack stack new` includes everything above, plus:
-
-| File | What it does |
-|---|---|
-| `scaffold/SKILL.md` | Full end-to-end resource generation — model, schema, service (flush-only, domain returns), route (commit + ownership), tests (testcontainers), frontend (typed API client + hooks) |
-| `auth/SKILL.md` | The `UserInfo` contract, `get_current_user` dependency, how to protect routes, how to swap JWT for Clerk/Auth0/SSO |
-| `test/SKILL.md` | Real Postgres via testcontainers, savepoint-rollback isolation, `asyncio_mode = "auto"` |
-| `db-migrate/SKILL.md` | Alembic workflow — create, review, apply, rollback, seed data |
-| `dev-server/SKILL.md` | Error detection patterns for backend (structured JSON logs) and frontend (Vite/React) |
-| `deploy/SKILL.md` | Docker build, ECR push, Terraform plan/apply, health check verification, rollback |
 
 All skills use the [Agent Skills open standard](https://agentskills.io/home) — the same `SKILL.md` format supported by Claude Code, Codex, Cursor, Copilot, Gemini CLI, and others.
 
@@ -126,38 +200,6 @@ All skills use the [Agent Skills open standard](https://agentskills.io/home) —
 - **The full chain, not just parts.** Each resource covers model → schema → service → route → migration → tests → frontend types → API client → hooks → page.
 - **Verification built in.** Every skill ends with how to check the work: `make verify`, specific test commands, expected outputs.
 - **Composable.** Skills reference each other — scaffold points to auth for ownership details, test points to scaffold for service return patterns.
-
----
-
-## Persistent Agents
-
-IDE agents help when you ask. Persistent agents help before you ask — watching your dev server, catching errors in real time, running tests on a schedule, and flagging when skills go stale because your code changed.
-
-SerpentStack ships with a multi-agent [OpenClaw](https://docs.openclaw.ai) workspace in `.openclaw/`:
-
-```
-.openclaw/
-  SOUL.md                              # shared project identity (all agents inherit)
-  agents/
-    log-watcher/AGENT.md               # watches dev server, scans logs (Haiku, 30-60s)
-    test-runner/AGENT.md               # runs tests, lint, typecheck (Haiku, 5-15min)
-    skill-maintainer/AGENT.md          # detects stale skills (Sonnet, 1hr)
-```
-
-Each `AGENT.md` is a self-contained agent definition with YAML frontmatter (model, schedule, tools) and markdown instructions. `serpentstack persistent` discovers all agents, lets you choose which to start and what model each uses, then opens each in its own terminal window as a separate OpenClaw process.
-
-| | IDE / Sidecar Agents | Persistent Agents |
-|---|---|---|
-| **Standard** | [Agent Skills](https://agentskills.io/home) (SKILL.md) | [OpenClaw](https://docs.openclaw.ai) (AGENT.md per agent) |
-| **Agents** | Claude Code, Codex, Cursor, Copilot, Gemini CLI | OpenClaw gateway (one per agent) |
-| **Mode** | On-demand: you ask, it acts | Always-on: they watch, they tell you |
-| **Directory** | `.skills/` | `.openclaw/agents/` |
-
-Both are plain text. Both are version-controlled. Neither requires vendor lock-in.
-
-**Managing agents:** Add an agent by creating `.openclaw/agents/<name>/AGENT.md`. Remove one by deleting its folder. Each agent gets its own model and schedule — Haiku for routine checks, Sonnet for deep analysis.
-
-**Cost note:** Heartbeat checks consume tokens (~4,000-10,000 per cycle). The defaults use Haiku for routine checks and Sonnet only for skill analysis to keep costs low.
 
 ---
 
@@ -172,11 +214,14 @@ serpentstack stack new <name>            # scaffold a full project from the temp
 serpentstack stack update                # update template-level files to latest
 
 # Any project
-serpentstack skills                      # download base skills + persistent agent configs
+serpentstack skills                      # download all skills + persistent agent configs
 serpentstack skills update               # update base skills to latest versions
-serpentstack persistent                  # manage + launch persistent agents
+serpentstack persistent                  # status dashboard (first run = full guided setup)
+serpentstack persistent --configure      # edit project settings
+serpentstack persistent --agents         # change agent models, enable/disable
+serpentstack persistent --models         # list installed & recommended models
+serpentstack persistent --start          # launch enabled agents
 serpentstack persistent --stop           # stop all running agents
-serpentstack persistent --reconfigure    # change models, enable/disable agents
 
 # Options
 --force                                 # overwrite existing files
@@ -213,12 +258,12 @@ frontend/
 
 infra/             # Terraform: App Runner, RDS, ECR, VPC
 .skills/           # IDE agent skills (Agent Skills standard)
-.openclaw/         # Persistent agent workspace (OpenClaw)
+.openclaw/         # Background agent workspace (OpenClaw)
 ```
 
 ### Patterns
 
-These are the conventions encoded in `.skills/` and `.cursorrules`. An agent learns them on first read.
+These are the conventions encoded in `.skills/`. An agent learns them on first read.
 
 **Services flush, routes commit.** Services call `await db.flush()` but never `db.commit()`. The route handler owns the transaction boundary. This lets you compose multiple service calls atomically.
 
@@ -272,7 +317,7 @@ Standard Docker containers. The AWS modules are a reference — it runs anywhere
 
 ## Contributing
 
-Contributions welcome — especially new project-specific skills, persistent agent configs (`.openclaw/agents/<name>/AGENT.md`), and Terraform modules for GCP/Azure. See [SKILL-AUTHORING.md](SKILL-AUTHORING.md) for how to write good skills. [Open an issue](https://github.com/Benja-Pauls/SerpentStack/issues) for bugs and feature requests.
+Contributions welcome — especially new project-specific skills, background agent configs (`.openclaw/agents/<name>/AGENT.md`), Terraform modules for GCP/Azure, and integrations with other AI coding tools. See [SKILL-AUTHORING.md](SKILL-AUTHORING.md) for how to write good skills. [Open an issue](https://github.com/Benja-Pauls/SerpentStack/issues) for bugs and feature requests.
 
 ## License
 
