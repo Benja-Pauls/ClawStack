@@ -71,6 +71,7 @@ function showHelp() {
   console.log(`    ${cyan('persistent')}                    Status dashboard (first run = full setup)`);
   console.log(`    ${cyan('persistent')} ${dim('--configure')}       Edit project settings`);
   console.log(`    ${cyan('persistent')} ${dim('--agents')}          Change agent models, enable/disable`);
+  console.log(`    ${cyan('persistent')} ${dim('--models')}          List installed & recommended models`);
   console.log(`    ${cyan('persistent')} ${dim('--start')}           Launch enabled agents`);
   console.log(`    ${cyan('persistent')} ${dim('--stop')}            Stop all running agents`);
   console.log();
@@ -141,6 +142,7 @@ async function main() {
       configure: !!flags.configure,
       agents: !!flags.agents,
       start: !!flags.start,
+      models: !!flags.models,
     });
   } else {
     error(`Unknown command: ${bold(noun)}`);
