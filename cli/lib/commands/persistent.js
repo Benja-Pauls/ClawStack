@@ -165,6 +165,102 @@ function printPreflightStatus(hasOpenClaw, available) {
   return hasOpenClaw;
 }
 
+// ─── Ollama Install ─────────────────────────────────────────
+
+/**
+ * Install Ollama automatically. Returns true if successful.
+ */
+async function installOllama() {
+  const platform = process.platform;
+
+  if (platform === 'darwin') {
+    const hasBrew = await which('brew');
+    if (hasBrew) {
+      info('Installing Ollama via Homebrew...');
+      console.log();
+      try {
+        const child = spawn('brew', ['install', 'ollama'], { stdio: 'inherit' });
+        const code = await new Promise(r => child.on('close', r));
+        if (code === 0) {
+          console.log();
+          success('Ollama installed');
+          info('Starting Ollama...');
+          spawn('brew', ['services', 'start', 'ollama'], { stdio: 'ignore', detached: true }).unref();
+          await new Promise(r => setTimeout(r, 3000));
+          return true;
+        }
+      } catch { /* fall through */ }
+    }
+
+    // Fallback: official install script
+    info('Installing Ollama from ollama.com...');
+    console.log();
+    try {
+      const child = spawn('bash', ['-c', 'curl -fsSL https://ollama.com/install.sh | sh'], { stdio: 'inherit' });
+      const code = await new Promise(r => child.on('close', r));
+      if (code === 0) {
+        console.log();
+        success('Ollama installed');
+        await new Promise(r => setTimeout(r, 2000));
+        return true;
+      }
+    } catch { /* fall through */ }
+  }
+
+  if (platform === 'linux') {
+    info('Installing Ollama...');
+    console.log();
+    try {
+      const child = spawn('bash', ['-c', 'curl -fsSL https://ollama.com/install.sh | sh'], { stdio: 'inherit' });
+      const code = await new Promise(r => child.on('close', r));
+      if (code === 0) {
+        console.log();
+        success('Ollama installed');
+        spawn('ollama', ['serve'], { stdio: 'ignore', detached: true }).unref();
+        await new Promise(r => setTimeout(r, 3000));
+        return true;
+      }
+    } catch { /* fall through */ }
+  }
+
+  error('Automatic install failed. Install Ollama manually:');
+  console.log(`    ${dim('$')} ${bold('curl -fsSL https://ollama.com/install.sh | sh')}`);
+  console.log();
+  return false;
+}
+
+/**
+ * Ensure Ollama is installed and running. Installs if needed (with user consent).
+ */
+async function ensureOllama(rl, available) {
+  if (available.ollamaInstalled && available.ollamaRunning) {
+    return { installed: true, running: true };
+  }
+
+  if (!available.ollamaInstalled) {
+    console.log();
+    const doInstall = await askYesNo(rl, `Ollama is not installed. Install it now? ${dim('(free, open-source)')}`, true);
+    if (!doInstall) return { installed: false, running: false };
+
+    rl.pause();
+    const ok = await installOllama();
+    rl.resume();
+
+    if (!ok) return { installed: false, running: false };
+    return { installed: true, running: true };
+  }
+
+  if (!available.ollamaRunning) {
+    console.log();
+    info('Ollama is installed but not running. Starting it...');
+    spawn('ollama', ['serve'], { stdio: 'ignore', detached: true }).unref();
+    await new Promise(r => setTimeout(r, 3000));
+    return { installed: true, running: true };
+  }
+
+  return { installed: true, running: true };
+}
+
 // ─── Model Install ──────────────────────────────────────────
 
 function ollamaPull(modelName) {
@@ -295,30 +391,26 @@ async function pickModel(rl, agentName, currentModel, available) {
   const idx = parseInt(answer.trim(), 10) - 1;
   const selected = (idx >= 0 && idx < choices.length) ? choices[idx] : choices[Math.max(0, currentIdx)];
 
-  // Handle downloadable model selection
+  // Handle downloadable model selection — install Ollama + pull model automatically
   if (selected.action === 'download') {
-    if (!available.ollamaInstalled) {
+    const ollama = await ensureOllama(rl, available);
+
+    if (!ollama.installed) {
+      warn(`Cannot download ${bold(selected.name)} without Ollama.`);
+      info('Saving your selection — run this command after installing Ollama:');
+      console.log(`    ${dim('$')} ${bold('serpentstack persistent --start')}`);
       console.log();
-      warn('Ollama is required to run local models.');
-      console.log(`  ${dim('Install Ollama (free, open-source):')}`);
-      console.log(`    ${dim('$')} ${bold('curl -fsSL https://ollama.com/install.sh | sh')}`);
-      console.log(`    ${dim('$')} ${bold('ollama serve')}`);
-      console.log();
-      info(`After installing, re-run ${bold('serpentstack persistent --agents')} to download and select ${bold(selected.name)}.`);
-      console.log();
-      // Save selection so it's remembered, but mark it can't launch yet
       return selected.id;
     }
 
-    if (!available.ollamaRunning) {
-      console.log();
-      warn('Ollama is installed but not running.');
+    if (!ollama.running) {
+      warn('Ollama installed but could not start. Try manually:');
       console.log(`    ${dim('$')} ${bold('ollama serve')}`);
       console.log();
       return selected.id;
     }
 
-    // Ollama is running — download the model now
+    // Ollama is ready — download the model
     rl.pause();
     const pulled = await ollamaPull(selected.name);
     rl.resume();
