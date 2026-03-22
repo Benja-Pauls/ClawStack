@@ -33,6 +33,19 @@ function which(cmd) {
   });
 }
 
+function execPromise(cmd, args) {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { timeout: 15000 }, (err, stdout, stderr) => {
+      if (err) {
+        const msg = stderr?.trim() || stdout?.trim() || err.message;
+        reject(new Error(msg));
+      } else {
+        resolve(stdout);
+      }
+    });
+  });
+}
+
 async function ask(rl, label, defaultValue) {
   const hint = defaultValue ? ` ${dim(`[${defaultValue}]`)}` : '';
   const answer = await rl.question(`  ${green('?')} ${bold(label)}${hint}: `);
@@ -425,7 +438,7 @@ end tell`;
 
 // ─── Stop Flow ──────────────────────────────────────────────
 
-function stopAllAgents(projectDir) {
+async function stopAllAgents(projectDir) {
   cleanStalePids(projectDir);
   const running = listPids(projectDir);
 
@@ -437,19 +450,31 @@ function stopAllAgents(projectDir) {
 
   let stopped = 0;
   for (const { name, pid } of running) {
+    // Remove cron jobs for this agent
     try {
-      process.kill(pid, 'SIGTERM');
-      removePid(projectDir, name);
-      cleanWorkspace(projectDir, name);
-      success(`Stopped ${bold(name)} ${dim(`(PID ${pid})`)}`);
-      stopped++;
-    } catch (err) {
-      if (err.code === 'ESRCH') {
-        removePid(projectDir, name);
-      } else {
-        error(`Failed to stop ${bold(name)}: ${err.message}`);
-      }
+      await execPromise('openclaw', ['cron', 'list', '--json']).then(out => {
+        const jobs = JSON.parse(out);
+        const agentJobs = (Array.isArray(jobs) ? jobs : jobs.jobs || [])
+          .filter(j => j.agent === name || (j.name && j.name.startsWith(`${name}-`)));
+        return Promise.all(agentJobs.map(j =>
+          execPromise('openclaw', ['cron', 'rm', j.id || j.name]).catch(() => {})
+        ));
+      });
+    } catch { /* cron cleanup is best-effort */ }
+
+    // Remove agent from OpenClaw
+    try {
+      await execPromise('openclaw', ['agents', 'delete', name, '--force']);
+    } catch { /* best-effort */ }
+
+    // Clean up PID and workspace
+    if (pid > 0) {
+      try { process.kill(pid, 'SIGTERM'); } catch { /* already dead */ }
     }
+    removePid(projectDir, name);
+    cleanWorkspace(projectDir, name);
+    success(`Stopped ${bold(name)}`);
+    stopped++;
   }
 
   if (stopped > 0) {
@@ -752,8 +777,9 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
   console.log();
 
   const sharedSoul = readFileSync(soulPath, 'utf8');
-  let started = 0;
+  let registered = 0;
 
+  // Step 1: Generate workspaces and register agents with OpenClaw
   for (const { name, agentMd } of toStart) {
     try {
       const effectiveModel = getEffectiveModel(name, agentMd.meta, config);
@@ -764,38 +790,110 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
 
       const workspacePath = generateWorkspace(projectDir, name, overriddenMd, sharedSoul);
       const absWorkspace = resolve(workspacePath);
-      const absProject = resolve(projectDir);
 
-      const openclawCmd = `OPENCLAW_STATE_DIR='${join(absWorkspace, '.state')}' openclaw start --workspace '${absWorkspace}'`;
-      const method = openInTerminal(`SerpentStack: ${name}`, openclawCmd, absProject);
-
-      if (method) {
-        writePid(projectDir, name, -1);
-        success(`${bold(name)} opened in ${method} ${dim(`(${modelShortName(effectiveModel)})`)}`);
-        started++;
-      } else {
-        warn(`No terminal detected — starting ${bold(name)} in background`);
-        const child = spawn('openclaw', ['start', '--workspace', absWorkspace], {
-          stdio: 'ignore',
-          detached: true,
-          cwd: absProject,
-          env: { ...process.env, OPENCLAW_STATE_DIR: join(absWorkspace, '.state') },
-        });
-        child.unref();
-        writePid(projectDir, name, child.pid);
-        success(`${bold(name)} started ${dim(`PID ${child.pid}`)}`);
-        started++;
+      // Register agent with OpenClaw (idempotent — will update if exists)
+      try {
+        await execPromise('openclaw', [
+          'agents', 'add', name,
+          '--workspace', absWorkspace,
+          '--model', effectiveModel,
+          '--non-interactive',
+        ]);
+        success(`${green('✓')} Registered ${bold(name)} ${dim(`(${modelShortName(effectiveModel)})`)}`);
+      } catch (err) {
+        // Agent may already exist — that's fine
+        if (err.message && err.message.includes('already exists')) {
+          info(`${bold(name)} already registered with OpenClaw`);
+        } else {
+          warn(`Could not register ${bold(name)}: ${err.message || 'unknown error'}`);
+        }
       }
+
+      // Add cron jobs for the agent's schedule
+      const schedules = agentMd.meta.schedule || [];
+      for (const sched of schedules) {
+        try {
+          await execPromise('openclaw', [
+            'cron', 'add',
+            '--agent', name,
+            '--every', sched.every,
+            '--message', `Run task: ${sched.task}`,
+            '--name', `${name}-${sched.task}`,
+            '--light-context',
+          ]);
+        } catch {
+          // Cron job may already exist — non-fatal
+        }
+      }
+
+      writePid(projectDir, name, -1); // marker
+      registered++;
     } catch (err) {
       error(`${bold(name)}: ${err.message}`);
     }
   }
 
-  console.log();
-  if (started > 0) {
-    success(`${started} agent(s) launched — fangs out 🐍`);
+  if (registered === 0) {
     console.log();
+    error('No agents were registered.');
+    console.log();
+    return;
   }
+
+  console.log();
+
+  // Step 2: Check if gateway is running, start it if not
+  let gatewayRunning = false;
+  try {
+    const healthResp = await fetch('http://127.0.0.1:18789/health');
+    gatewayRunning = healthResp.ok;
+  } catch {
+    // not running
+  }
+
+  if (!gatewayRunning) {
+    info('Starting OpenClaw gateway...');
+
+    const method = openInTerminal(
+      'OpenClaw Gateway',
+      'openclaw gateway',
+      resolve(projectDir),
+    );
+
+    if (method) {
+      success(`Gateway opened in ${method}`);
+    } else {
+      // Fallback: start in background
+      const child = spawn('openclaw', ['gateway'], {
+        stdio: 'ignore',
+        detached: true,
+        cwd: resolve(projectDir),
+      });
+      child.unref();
+      success(`Gateway started in background ${dim(`(PID ${child.pid})`)}`);
+    }
+
+    // Give gateway a moment to start
+    console.log(`  ${dim('Waiting for gateway...')}`);
+    await new Promise(r => setTimeout(r, 3000));
+  } else {
+    success('Gateway is already running');
+  }
+
+  console.log();
+  success(`${registered} agent(s) registered — fangs out 🐍`);
+  console.log();
+
+  printBox('Your agents are running', [
+    `${dim('The OpenClaw gateway manages your agents on their schedules.')}`,
+    `${dim('View agent activity with:')}`,
+    '',
+    `${dim('$')} ${bold('openclaw tui')}                     ${dim('# interactive terminal UI')}`,
+    `${dim('$')} ${bold('openclaw cron list')}                ${dim('# see scheduled tasks')}`,
+    `${dim('$')} ${bold('openclaw agents list')}              ${dim('# see registered agents')}`,
+    `${dim('$')} ${bold('serpentstack persistent --stop')}    ${dim('# stop all agents')}`,
+  ]);
+  console.log();
 }
 
 // ─── Main Entry Point ───────────────────────────────────────
@@ -808,7 +906,7 @@ export async function persistent({ stop = false, configure = false, agents = fal
   // ── Stop (doesn't need full preflight) ──
   if (stop) {
     cleanStalePids(projectDir);
-    stopAllAgents(projectDir);
+    await stopAllAgents(projectDir);
     return;
   }
 

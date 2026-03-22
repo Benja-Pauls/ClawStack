@@ -94,7 +94,7 @@ export function printHeader() {
 
 export function divider(label) {
   if (label) {
-    console.log(`  ${DIM}── ${RESET}${BOLD}${label}${RESET} ${DIM}${'─'.repeat(Math.max(0, 50 - stripAnsi(label).length))}${RESET}`);
+    console.log(`  ${DIM}──${RESET} ${GREEN}${BOLD}${label}${RESET} ${DIM}${'─'.repeat(Math.max(0, 50 - stripAnsi(label).length))}${RESET}`);
   } else {
     console.log(`  ${DIM}${'─'.repeat(54)}${RESET}`);
   }
