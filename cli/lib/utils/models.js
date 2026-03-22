@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { freemem, totalmem } from 'node:os';
 
 // ─── Fallback Recommendations ───────────────────────────────
 // Used only when the Ollama library API is unreachable.
@@ -271,6 +272,38 @@ export function modelShortName(model) {
   if (model.startsWith('ollama/')) return model.slice('ollama/'.length);
   if (model.includes('/')) return model.split('/').pop();
   return model;
+}
+
+/**
+ * Detect system capabilities for model recommendations.
+ * Returns { totalRAM, freeRAM, maxModelSize, recommendation }.
+ */
+export function detectSystemCapabilities() {
+  const total = totalmem();
+  const free = freemem();
+  const totalGB = total / (1024 ** 3);
+  const freeGB = free / (1024 ** 3);
+
+  // Ollama needs ~2GB overhead; model needs to fit in remaining RAM
+  const availableForModel = Math.max(0, freeGB - 2);
+
+  let recommendation;
+  if (totalGB >= 32) {
+    recommendation = 'Your system can handle large models (up to 24B parameters)';
+  } else if (totalGB >= 16) {
+    recommendation = 'Good for medium models (up to 8B parameters)';
+  } else if (totalGB >= 8) {
+    recommendation = 'Best with small models (3B–4B parameters)';
+  } else {
+    recommendation = 'Limited RAM — use cloud models or very small local models';
+  }
+
+  return {
+    totalGB: totalGB.toFixed(0),
+    freeGB: freeGB.toFixed(1),
+    availableGB: availableForModel.toFixed(1),
+    recommendation,
+  };
 }
 
 function execAsync(cmd, args) {

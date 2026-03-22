@@ -23,7 +23,7 @@ import {
   getEffectiveModel,
   isAgentEnabled,
 } from '../utils/config.js';
-import { detectModels, modelShortName } from '../utils/models.js';
+import { detectModels, modelShortName, detectSystemCapabilities } from '../utils/models.js';
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -244,13 +244,13 @@ async function pickModel(rl, agentName, currentModel, available) {
     }
   }
 
-  // Section 2: Recommended models (not installed, auto-download on select)
-  if (available.ollamaInstalled && available.recommended.length > 0) {
+  // Section 2: Downloadable models — always shown if we have recommendations
+  if (available.recommended.length > 0) {
     const liveTag = available.recommendedLive
-      ? dim(`fetched from ollama.com`)
+      ? dim(`live from ollama.com`)
       : dim(`cached list`);
-    console.log(`    ${dim('── Download')} ${cyan('free')} ${dim('(')}${liveTag}${dim(') ──')}`);
-    // Show a reasonable subset (not 50 models)
+    const needsOllama = !available.ollamaInstalled ? dim(' · requires Ollama') : '';
+    console.log(`    ${dim('── Download')} ${cyan('free')} ${dim('(')}${liveTag}${needsOllama}${dim(') ──')}`);
     const toShow = available.recommended.slice(0, 8);
     for (const r of toShow) {
       const idx = choices.length;
@@ -316,9 +316,33 @@ async function pickModel(rl, agentName, currentModel, available) {
 
   const selected = (idx >= 0 && idx < choices.length) ? choices[idx] : choices[Math.max(0, currentIdx)];
 
-  // If they selected a downloadable model, pull it now
+  // If they selected a downloadable model, handle Ollama install + pull
   if (selected.action === 'download') {
-    // Close rl temporarily so ollama pull can use the terminal
+    if (!available.ollamaInstalled) {
+      console.log();
+      warn('Ollama is required to run local models.');
+      console.log();
+      console.log(`  ${dim('Install Ollama (free, open-source):')}`);
+      console.log(`    ${dim('$')} ${bold('curl -fsSL https://ollama.com/install.sh | sh')}`);
+      console.log(`    ${dim('$')} ${bold('ollama serve')}`);
+      console.log();
+      info(`After installing, re-run ${bold('serpentstack persistent --agents')} to download and select ${bold(selected.name)}.`);
+      console.log();
+
+      // Save the selection anyway so it's remembered
+      return selected.id;
+    }
+
+    if (!available.ollamaRunning) {
+      console.log();
+      warn('Ollama is installed but not running.');
+      console.log(`    ${dim('$')} ${bold('ollama serve')}`);
+      console.log();
+      info(`Start Ollama, then re-run ${bold('serpentstack persistent --agents')} to download ${bold(selected.name)}.`);
+      console.log();
+      return selected.id;
+    }
+
     rl.pause();
     const pulled = await ollamaPull(selected.name);
     rl.resume();
@@ -601,9 +625,25 @@ async function runConfigure(projectDir, config, soulPath) {
 
 // ─── Agents Flow ────────────────────────────────────────────
 
+// Agent description summaries for the enable/disable flow
+const AGENT_SUMMARIES = {
+  'log-watcher': 'Monitors your dev server health and log output every 30–60s. Catches backend crashes, frontend build errors, and import failures — reports them with file paths and suggested fixes.',
+  'test-runner': 'Runs your test suite every 5 min and lint/typecheck every 15 min. Catches regressions before you commit — shows which test failed, what changed, and whether the test or source needs fixing.',
+  'skill-maintainer': 'Checks every hour whether your .skills/ files still match the actual codebase. When code patterns drift from what skills describe, it proposes exact updates so IDE agents stay accurate.',
+};
+
 async function runAgents(projectDir, config, parsed, available) {
+  // Show system capabilities so users know what models they can run
+  const sys = detectSystemCapabilities();
+
+  divider('Your System');
+  console.log(`    ${dim('RAM:')} ${bold(sys.totalGB + ' GB')} total, ${sys.freeGB} GB free`);
+  console.log(`    ${dim(sys.recommendation)}`);
+  console.log();
+
   divider('Agents');
-  console.log(`  ${dim('Enable/disable each agent and pick a model.')}`);
+  console.log(`  ${dim('Each agent runs in its own terminal on a schedule.')}`);
+  console.log(`  ${dim('Enable the ones you want, then pick a model for each.')}`);
   console.log();
 
   const rl = createInterface({ input: stdin, output: stdout });
@@ -615,8 +655,23 @@ async function runAgents(projectDir, config, parsed, available) {
       const currentModel = existingAgent?.model || 'ollama/llama3.2';
       const schedule = (agentMd.meta.schedule || []).map(s => s.every).join(', ');
 
-      console.log(`  ${bold(name)}  ${dim(agentMd.meta.description || '')}`);
-      console.log(`    ${dim(`Schedule: ${schedule || 'none'}`)}`);
+      // Show rich description
+      console.log(`  ${bold(name)}  ${dim(`(${schedule || 'manual'})`)}`);
+      const summary = AGENT_SUMMARIES[name] || agentMd.meta.description || '';
+      if (summary) {
+        // Word-wrap summary to ~70 chars, indented
+        const words = summary.split(' ');
+        let line = '';
+        for (const word of words) {
+          if (line.length + word.length + 1 > 68) {
+            console.log(`    ${dim(line)}`);
+            line = word;
+          } else {
+            line = line ? `${line} ${word}` : word;
+          }
+        }
+        if (line) console.log(`    ${dim(line)}`);
+      }
 
       const enabled = await askYesNo(rl, `Enable ${bold(name)}?`, currentEnabled);
 
