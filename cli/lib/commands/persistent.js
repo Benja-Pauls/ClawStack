@@ -8,12 +8,6 @@ import {
   parseAgentMd,
   discoverAgents,
   generateWorkspace,
-  writePid,
-  removePid,
-  listPids,
-  cleanStalePids,
-  cleanWorkspace,
-  isProcessAlive,
 } from '../utils/agent-utils.js';
 import {
   readConfig,
@@ -33,9 +27,9 @@ function which(cmd) {
   });
 }
 
-function execPromise(cmd, args) {
+function execPromise(cmd, args, opts = {}) {
   return new Promise((resolve, reject) => {
-    execFile(cmd, args, { timeout: 15000 }, (err, stdout, stderr) => {
+    execFile(cmd, args, { timeout: 15000, ...opts }, (err, stdout, stderr) => {
       if (err) {
         const msg = stderr?.trim() || stdout?.trim() || err.message;
         reject(new Error(msg));
@@ -60,31 +54,42 @@ async function askYesNo(rl, label, defaultYes = true) {
   return val === 'y' || val === 'yes';
 }
 
+async function isGatewayRunning() {
+  try {
+    // Try the WebSocket upgrade endpoint with a plain HTTP request
+    const resp = await fetch('http://127.0.0.1:18789/', { signal: AbortSignal.timeout(2000) });
+    return true; // Any response means gateway is up
+  } catch {
+    return false;
+  }
+}
+
 // ─── Preflight ──────────────────────────────────────────────
 
-/**
- * Check all prerequisites and return a status object.
- * Exits the process with helpful guidance if anything critical is missing.
- */
 async function preflight(projectDir) {
   const soulPath = join(projectDir, '.openclaw/SOUL.md');
 
-  // Check for .openclaw workspace
+  // Auto-create .openclaw workspace if missing
   if (!existsSync(soulPath)) {
-    error('No .openclaw/ workspace found.');
+    info('No .openclaw/ workspace found — setting up now...');
     console.log();
-    console.log(`  ${dim('Run')} ${bold('serpentstack skills')} ${dim('first to download skills and agent configs.')}`);
-    console.log();
-    process.exit(1);
+    try {
+      const { skillsInit } = await import('./skills-init.js');
+      await skillsInit({ force: false });
+      console.log();
+    } catch (err) {
+      error(`Failed to set up workspace: ${err.message}`);
+      console.log(`  ${dim('Run')} ${bold('serpentstack skills')} ${dim('manually to download skills and agent configs.')}`);
+      console.log();
+      process.exit(1);
+    }
   }
 
   // Check for agent definitions
   const agentDirs = discoverAgents(projectDir);
   if (agentDirs.length === 0) {
     error('No agents found in .openclaw/agents/');
-    console.log();
-    console.log(`  ${dim('Run')} ${bold('serpentstack skills')} ${dim('to download the default agents,')}`);
-    console.log(`  ${dim('or create your own at')} ${bold('.openclaw/agents/<name>/AGENT.md')}`);
+    console.log(`  ${dim('Run')} ${bold('serpentstack skills')} ${dim('to download the default agents.')}`);
     console.log();
     process.exit(1);
   }
@@ -107,31 +112,26 @@ async function preflight(projectDir) {
 
   // Detect runtime dependencies in parallel
   const spin = spinner('Checking runtime...');
-  const [hasOpenClaw, available] = await Promise.all([
+  const [hasOpenClaw, hasOllama, available] = await Promise.all([
     which('openclaw'),
+    which('ollama'),
     detectModels(),
   ]);
   spin.stop();
 
-  return { soulPath, parsed, hasOpenClaw, available };
+  return { soulPath, parsed, hasOpenClaw, hasOllama, available };
 }
 
-/**
- * Print a summary of what's installed and what's missing.
- * Returns true if everything needed to launch is present.
- */
 function printPreflightStatus(hasOpenClaw, available) {
   divider('Runtime');
   console.log();
 
-  // OpenClaw
   if (hasOpenClaw) {
     console.log(`    ${green('✓')} OpenClaw ${dim('— persistent agent runtime')}`);
   } else {
     console.log(`    ${red('✗')} OpenClaw ${dim('— not installed')}`);
   }
 
-  // Ollama
   if (available.ollamaRunning) {
     console.log(`    ${green('✓')} Ollama  ${dim(`— running, ${available.local.length} model(s) installed`)}`);
   } else if (available.ollamaInstalled) {
@@ -140,48 +140,26 @@ function printPreflightStatus(hasOpenClaw, available) {
     console.log(`    ${yellow('○')} Ollama  ${dim('— not installed (optional, for free local models)')}`);
   }
 
-  // API key
   if (available.hasApiKey) {
     console.log(`    ${green('✓')} API key ${dim('— configured for cloud models')}`);
   }
 
   console.log();
 
-  // Actionable guidance for missing pieces
   const issues = [];
-
   if (!hasOpenClaw) {
-    issues.push({
-      label: 'Install OpenClaw (required to run agents)',
-      cmd: 'npm install -g openclaw@latest',
-    });
+    issues.push({ label: 'Install OpenClaw (required to run agents)', cmd: 'npm install -g openclaw@latest' });
   }
-
   if (!available.ollamaInstalled) {
-    issues.push({
-      label: 'Install Ollama for free local models (recommended)',
-      cmd: 'curl -fsSL https://ollama.com/install.sh | sh',
-    });
+    issues.push({ label: 'Install Ollama for free local models (recommended)', cmd: 'curl -fsSL https://ollama.com/install.sh | sh' });
   } else if (!available.ollamaRunning) {
-    issues.push({
-      label: 'Start Ollama',
-      cmd: 'ollama serve',
-    });
+    issues.push({ label: 'Start Ollama', cmd: 'ollama serve' });
   }
 
-  if (available.ollamaRunning && available.local.length === 0) {
-    issues.push({
-      label: 'Pull a model (Ollama is running but has no models)',
-      cmd: 'ollama pull llama3.2',
-    });
-  }
-
-  if (issues.length > 0) {
-    for (const issue of issues) {
-      console.log(`  ${dim(issue.label + ':')}`);
-      console.log(`    ${dim('$')} ${bold(issue.cmd)}`);
-      console.log();
-    }
+  for (const issue of issues) {
+    console.log(`  ${dim(issue.label + ':')}`);
+    console.log(`    ${dim('$')} ${bold(issue.cmd)}`);
+    console.log();
   }
 
   return hasOpenClaw;
@@ -189,10 +167,6 @@ function printPreflightStatus(hasOpenClaw, available) {
 
 // ─── Model Install ──────────────────────────────────────────
 
-/**
- * Run `ollama pull <model>` with live progress output.
- * Returns true if the pull succeeded.
- */
 function ollamaPull(modelName) {
   return new Promise((resolve) => {
     console.log();
@@ -203,7 +177,6 @@ function ollamaPull(modelName) {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
-    // Stream progress to the terminal
     child.stdout.on('data', (data) => {
       const line = data.toString().trim();
       if (line) process.stderr.write(`    ${line}\r`);
@@ -214,7 +187,7 @@ function ollamaPull(modelName) {
     });
 
     child.on('close', (code) => {
-      process.stderr.write('\x1b[K'); // clear the progress line
+      process.stderr.write('\x1b[K');
       if (code === 0) {
         success(`${bold(modelName)} installed`);
         console.log();
@@ -257,11 +230,9 @@ async function pickModel(rl, agentName, currentModel, available) {
     }
   }
 
-  // Section 2: Downloadable models — always shown if we have recommendations
+  // Section 2: Downloadable models — always shown
   if (available.recommended.length > 0) {
-    const liveTag = available.recommendedLive
-      ? dim(`live from ollama.com`)
-      : dim(`cached list`);
+    const liveTag = available.recommendedLive ? dim('live from ollama.com') : dim('cached list');
     const needsOllama = !available.ollamaInstalled ? dim(' · requires Ollama') : '';
     console.log(`    ${dim('── Download')} ${cyan('free')} ${dim('(')}${liveTag}${needsOllama}${dim(') ──')}`);
     const toShow = available.recommended.slice(0, 8);
@@ -269,13 +240,9 @@ async function pickModel(rl, agentName, currentModel, available) {
       const idx = choices.length;
       const isCurrent = `ollama/${r.name}` === currentModel;
       choices.push({
-        id: `ollama/${r.name}`,
-        name: r.name,
-        params: r.params,
-        size: r.size,
-        description: r.description,
-        tier: 'downloadable',
-        action: 'download',
+        id: `ollama/${r.name}`, name: r.name, params: r.params,
+        size: r.size, description: r.description,
+        tier: 'downloadable', action: 'download',
       });
       const marker = isCurrent ? green('>') : ' ';
       const num = dim(`${idx + 1}.`);
@@ -310,12 +277,10 @@ async function pickModel(rl, agentName, currentModel, available) {
 
   if (choices.length === 0) {
     warn('No models available. Install Ollama and pull a model first.');
-    console.log(`    ${dim('$')} ${bold('curl -fsSL https://ollama.com/install.sh | sh')}`);
-    console.log(`    ${dim('$')} ${bold('ollama pull llama3.2')}`);
     return currentModel;
   }
 
-  // If current model isn't in any list, append it at the end (never unshift — it breaks numbering)
+  // If current model isn't in any list, append at end (never unshift — breaks numbering)
   if (!choices.some(c => c.id === currentModel)) {
     const idx = choices.length;
     choices.push({ id: currentModel, name: modelShortName(currentModel), tier: 'custom', action: 'use' });
@@ -328,23 +293,20 @@ async function pickModel(rl, agentName, currentModel, available) {
 
   const answer = await rl.question(`    ${dim(`Enter 1-${choices.length}`)} ${dim(`[${defaultNum}]`)}: `);
   const idx = parseInt(answer.trim(), 10) - 1;
-
   const selected = (idx >= 0 && idx < choices.length) ? choices[idx] : choices[Math.max(0, currentIdx)];
 
-  // If they selected a downloadable model, handle Ollama install + pull
+  // Handle downloadable model selection
   if (selected.action === 'download') {
     if (!available.ollamaInstalled) {
       console.log();
       warn('Ollama is required to run local models.');
-      console.log();
       console.log(`  ${dim('Install Ollama (free, open-source):')}`);
       console.log(`    ${dim('$')} ${bold('curl -fsSL https://ollama.com/install.sh | sh')}`);
       console.log(`    ${dim('$')} ${bold('ollama serve')}`);
       console.log();
       info(`After installing, re-run ${bold('serpentstack persistent --agents')} to download and select ${bold(selected.name)}.`);
       console.log();
-
-      // Save the selection anyway so it's remembered
+      // Save selection so it's remembered, but mark it can't launch yet
       return selected.id;
     }
 
@@ -353,11 +315,10 @@ async function pickModel(rl, agentName, currentModel, available) {
       warn('Ollama is installed but not running.');
       console.log(`    ${dim('$')} ${bold('ollama serve')}`);
       console.log();
-      info(`Start Ollama, then re-run ${bold('serpentstack persistent --agents')} to download ${bold(selected.name)}.`);
-      console.log();
       return selected.id;
     }
 
+    // Ollama is running — download the model now
     rl.pause();
     const pulled = await ollamaPull(selected.name);
     rl.resume();
@@ -368,9 +329,9 @@ async function pickModel(rl, agentName, currentModel, available) {
     }
   }
 
-  // Warn about cloud model costs
+  // Warn about cloud costs
   if (selected.tier === 'cloud' && (available.local.length > 0 || available.recommended.length > 0)) {
-    warn(`Cloud models cost tokens per heartbeat. Consider a local model for persistent agents.`);
+    warn('Cloud models cost tokens per heartbeat. Consider a local model for persistent agents.');
   }
   if (selected.tier === 'cloud' && !available.hasApiKey) {
     warn(`No API key detected. Run ${bold('openclaw configure')} to set up authentication.`);
@@ -440,46 +401,51 @@ end tell`;
 
 // ─── Stop Flow ──────────────────────────────────────────────
 
-async function stopAllAgents(projectDir) {
-  cleanStalePids(projectDir);
-  const running = listPids(projectDir);
-
-  if (running.length === 0) {
-    info('No agents are currently running.');
-    console.log();
-    return 0;
-  }
-
+async function stopAllAgents(projectDir, config, parsed) {
+  const hasOpenClaw = await which('openclaw');
   let stopped = 0;
-  for (const { name, pid } of running) {
-    // Remove cron jobs for this agent
-    try {
-      await execPromise('openclaw', ['cron', 'list', '--json']).then(out => {
-        const jobs = JSON.parse(out);
-        const agentJobs = (Array.isArray(jobs) ? jobs : jobs.jobs || [])
-          .filter(j => j.agent === name || (j.name && j.name.startsWith(`${name}-`)));
-        return Promise.all(agentJobs.map(j =>
-          execPromise('openclaw', ['cron', 'rm', j.id || j.name]).catch(() => {})
-        ));
-      });
-    } catch { /* cron cleanup is best-effort */ }
 
-    // Remove agent from OpenClaw
-    try {
-      await execPromise('openclaw', ['agents', 'delete', name, '--force']);
-    } catch { /* best-effort */ }
+  // Get list of enabled agents from config (don't rely on PIDs)
+  const agentNames = parsed
+    ? parsed.map(a => a.name)
+    : Object.keys(config?.agents || {});
 
-    // Clean up PID and workspace
-    if (pid > 0) {
-      try { process.kill(pid, 'SIGTERM'); } catch { /* already dead */ }
+  for (const name of agentNames) {
+    let didSomething = false;
+
+    if (hasOpenClaw) {
+      // Remove cron jobs for this agent
+      try {
+        const out = await execPromise('openclaw', ['cron', 'list', '--json']);
+        const data = JSON.parse(out);
+        const jobs = Array.isArray(data) ? data : (data.jobs || []);
+        const agentJobs = jobs.filter(j =>
+          j.agent === name || (j.name && j.name.startsWith(`${name}-`))
+        );
+        for (const j of agentJobs) {
+          try {
+            await execPromise('openclaw', ['cron', 'rm', j.id || j.name]);
+            didSomething = true;
+          } catch { /* best-effort */ }
+        }
+      } catch { /* gateway might not be running */ }
+
+      // Remove agent registration from OpenClaw
+      try {
+        await execPromise('openclaw', ['agents', 'delete', name]);
+        didSomething = true;
+      } catch { /* agent may not exist */ }
     }
-    removePid(projectDir, name);
-    cleanWorkspace(projectDir, name);
-    success(`Stopped ${bold(name)}`);
-    stopped++;
+
+    if (didSomething) {
+      success(`Stopped ${bold(name)}`);
+      stopped++;
+    }
   }
 
-  if (stopped > 0) {
+  if (stopped === 0) {
+    info('No agents are currently registered with OpenClaw.');
+  } else {
     console.log();
     success(`${stopped} agent(s) stopped`);
   }
@@ -489,28 +455,20 @@ async function stopAllAgents(projectDir) {
 
 // ─── Agent Status ───────────────────────────────────────────
 
-function getAgentStatus(projectDir, name, config) {
-  const pid = listPids(projectDir).find(p => p.name === name);
-  if (pid && isProcessAlive(pid.pid)) return { status: 'running', pid: pid.pid };
-  if (!isAgentEnabled(name, config)) return { status: 'disabled', pid: null };
-  return { status: 'stopped', pid: null };
-}
-
-function printAgentLine(name, agentMd, config, statusInfo) {
+function printAgentLine(name, agentMd, config) {
   const model = getEffectiveModel(name, agentMd.meta, config);
   const schedule = (agentMd.meta.schedule || []).map(s => s.every).join(', ');
   const modelStr = modelShortName(model);
+  const enabled = isAgentEnabled(name, config);
 
-  if (statusInfo.status === 'running') {
-    console.log(`    ${green('●')} ${bold(name)}  ${dim(modelStr)}  ${dim(schedule)}  ${green(`PID ${statusInfo.pid}`)}`);
-  } else if (statusInfo.status === 'disabled') {
-    console.log(`    ${dim('○')} ${dim(name)}  ${dim(modelStr)}  ${dim(schedule)}  ${dim('disabled')}`);
+  if (enabled) {
+    console.log(`    ${green('●')} ${bold(name)}  ${dim(modelStr)}  ${dim(schedule)}  ${green('enabled')}`);
   } else {
-    console.log(`    ${yellow('○')} ${bold(name)}  ${dim(modelStr)}  ${dim(schedule)}  ${dim('ready')}`);
+    console.log(`    ${dim('○')} ${dim(name)}  ${dim(modelStr)}  ${dim(schedule)}  ${dim('disabled')}`);
   }
 }
 
-function printStatusDashboard(config, parsed, projectDir) {
+function printStatusDashboard(config, parsed) {
   console.log(`  ${bold(config.project.name)} ${dim(`— ${config.project.framework}`)}`);
   console.log(`  ${dim(`Dev: ${config.project.devCmd} · Test: ${config.project.testCmd}`)}`);
   console.log();
@@ -518,8 +476,7 @@ function printStatusDashboard(config, parsed, projectDir) {
   divider('Agents');
   console.log();
   for (const { name, agentMd } of parsed) {
-    const statusInfo = getAgentStatus(projectDir, name, config);
-    printAgentLine(name, agentMd, config, statusInfo);
+    printAgentLine(name, agentMd, config);
   }
   console.log();
 }
@@ -552,14 +509,13 @@ async function runModels(available) {
 
   console.log();
 
-  // Show recommended models to install
   if (available.recommended.length > 0) {
     divider('Recommended Models');
     console.log();
     if (available.recommendedLive) {
       success(`Fetched latest models from ${cyan('ollama.com/library')}`);
     } else {
-      warn(`Could not reach ollama.com — showing cached recommendations`);
+      warn('Could not reach ollama.com — showing cached recommendations');
     }
     console.log();
     for (const r of available.recommended) {
@@ -568,7 +524,6 @@ async function runModels(available) {
     console.log();
   }
 
-  // Status summary
   if (!available.ollamaInstalled) {
     console.log(`  ${dim('Install Ollama for free local models:')}`);
     console.log(`    ${dim('$')} ${bold('curl -fsSL https://ollama.com/install.sh | sh')}`);
@@ -624,8 +579,7 @@ async function runConfigure(projectDir, config, soulPath) {
       let soul = readFileSync(soulPath, 'utf8');
       const ctx = [
         `# ${config.project.name} — Persistent Development Agents`,
-        '',
-        `**Project:** ${config.project.name}`,
+        '', `**Project:** ${config.project.name}`,
         `**Language:** ${config.project.language}`,
         `**Framework:** ${config.project.framework}`,
         `**Dev server:** \`${config.project.devCmd}\``,
@@ -652,7 +606,6 @@ async function runConfigure(projectDir, config, soulPath) {
 
 // ─── Agents Flow ────────────────────────────────────────────
 
-// Agent description summaries for the enable/disable flow
 const AGENT_SUMMARIES = {
   'log-watcher': 'Monitors your dev server health and log output every 30–60s. Catches backend crashes, frontend build errors, and import failures — reports them with file paths and suggested fixes.',
   'test-runner': 'Runs your test suite every 5 min and lint/typecheck every 15 min. Catches regressions before you commit — shows which test failed, what changed, and whether the test or source needs fixing.',
@@ -660,7 +613,6 @@ const AGENT_SUMMARIES = {
 };
 
 async function runAgents(projectDir, config, parsed, available) {
-  // Show system capabilities so users know what models they can run
   const sys = detectSystemCapabilities();
 
   divider('Your System');
@@ -682,11 +634,9 @@ async function runAgents(projectDir, config, parsed, available) {
       const currentModel = existingAgent?.model || 'ollama/llama3.2';
       const schedule = (agentMd.meta.schedule || []).map(s => s.every).join(', ');
 
-      // Show rich description
       console.log(`  ${bold(name)}  ${dim(`(${schedule || 'manual'})`)}`);
       const summary = AGENT_SUMMARIES[name] || agentMd.meta.description || '';
       if (summary) {
-        // Word-wrap summary to ~70 chars, indented
         const words = summary.split(' ');
         let line = '';
         for (const word of words) {
@@ -727,32 +677,80 @@ async function runAgents(projectDir, config, parsed, available) {
 
 // ─── Start Flow ─────────────────────────────────────────────
 
-async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
+function isModelAvailable(modelId, available) {
+  // Check if it's an installed local model
+  if (available.local.some(m => m.id === modelId)) return true;
+  // Check if it's a cloud model with API key
+  if (available.cloud.some(m => m.id === modelId) && available.hasApiKey) return true;
+  return false;
+}
+
+async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw, available) {
   if (!hasOpenClaw) {
     error('Cannot launch agents — OpenClaw is not installed.');
-    console.log();
-    console.log(`  ${dim('$')} ${bold('npm install -g openclaw@latest')}`);
+    console.log(`    ${dim('$')} ${bold('npm install -g openclaw@latest')}`);
     console.log();
     return;
   }
 
   const enabledAgents = parsed.filter(a => isAgentEnabled(a.name, config));
-  const runningNames = new Set(listPids(projectDir).map(p => p.name));
-  const startable = enabledAgents.filter(a => !runningNames.has(a.name));
 
-  if (startable.length === 0 && runningNames.size > 0) {
-    info('All enabled agents are already running.');
-    console.log();
-    return;
-  }
-
-  if (startable.length === 0) {
+  if (enabledAgents.length === 0) {
     info('No agents are enabled.');
     console.log(`  ${dim('Run')} ${bold('serpentstack persistent --agents')} ${dim('to enable agents.')}`);
     console.log();
     return;
   }
 
+  // Check model availability for each agent BEFORE launching
+  const launchable = [];
+  const blocked = [];
+
+  for (const agent of enabledAgents) {
+    const model = getEffectiveModel(agent.name, agent.agentMd.meta, config);
+    if (isModelAvailable(model, available)) {
+      launchable.push(agent);
+    } else {
+      blocked.push({ agent, model });
+    }
+  }
+
+  if (blocked.length > 0) {
+    divider('Model Issues');
+    console.log();
+    for (const { agent, model } of blocked) {
+      const shortName = modelShortName(model);
+      if (model.startsWith('ollama/')) {
+        if (!available.ollamaInstalled) {
+          warn(`${bold(agent.name)} needs ${bold(shortName)} but Ollama is not installed.`);
+          console.log(`    ${dim('$')} ${bold('curl -fsSL https://ollama.com/install.sh | sh')}`);
+          console.log(`    ${dim('$')} ${bold(`ollama pull ${shortName}`)}`);
+        } else if (!available.ollamaRunning) {
+          warn(`${bold(agent.name)} needs ${bold(shortName)} but Ollama is not running.`);
+          console.log(`    ${dim('$')} ${bold('ollama serve')}`);
+        } else {
+          warn(`${bold(agent.name)} needs ${bold(shortName)} which is not installed.`);
+          console.log(`    ${dim('$')} ${bold(`ollama pull ${shortName}`)}`);
+        }
+      } else {
+        warn(`${bold(agent.name)} needs ${bold(shortName)} but no API key is configured.`);
+        console.log(`    ${dim('$')} ${bold('openclaw configure')}`);
+      }
+      console.log();
+    }
+
+    if (launchable.length === 0) {
+      error('No agents can launch — fix the model issues above first.');
+      console.log(`  ${dim('Or run')} ${bold('serpentstack persistent --agents')} ${dim('to pick different models.')}`);
+      console.log();
+      return;
+    }
+
+    info(`${launchable.length} of ${enabledAgents.length} agent(s) can launch. Continuing with available agents.`);
+    console.log();
+  }
+
+  // Confirm which agents to start
   const rl = createInterface({ input: stdin, output: stdout });
   const toStart = [];
 
@@ -760,7 +758,7 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
     divider('Launch');
     console.log();
 
-    for (const agent of startable) {
+    for (const agent of launchable) {
       const model = getEffectiveModel(agent.name, agent.agentMd.meta, config);
       const yes = await askYesNo(rl, `Start ${bold(agent.name)} ${dim(`(${modelShortName(model)})`)}?`, true);
       if (yes) toStart.push(agent);
@@ -778,10 +776,50 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
 
   console.log();
 
+  // Ensure gateway is running first
+  let gatewayRunning = await isGatewayRunning();
+
+  if (!gatewayRunning) {
+    info('Starting OpenClaw gateway...');
+
+    const method = openInTerminal('OpenClaw Gateway', 'openclaw gateway', resolve(projectDir));
+
+    if (method) {
+      success(`Gateway opened in ${method}`);
+    } else {
+      const child = spawn('openclaw', ['gateway'], {
+        stdio: 'ignore', detached: true, cwd: resolve(projectDir),
+      });
+      child.unref();
+      success(`Gateway started in background ${dim(`(PID ${child.pid})`)}`);
+    }
+
+    // Wait for gateway to be ready
+    console.log(`  ${dim('Waiting for gateway...')}`);
+    for (let i = 0; i < 10; i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      if (await isGatewayRunning()) {
+        gatewayRunning = true;
+        break;
+      }
+    }
+
+    if (!gatewayRunning) {
+      warn('Gateway did not start in time. Agents may not run immediately.');
+      console.log(`  ${dim('Check the gateway terminal for errors, then retry with:')}`)
+      console.log(`    ${dim('$')} ${bold('serpentstack persistent --start')}`);
+      console.log();
+    }
+  } else {
+    success('Gateway is already running');
+  }
+
+  console.log();
+
+  // Register agents and create cron jobs
   const sharedSoul = readFileSync(soulPath, 'utf8');
   let registered = 0;
 
-  // Step 1: Generate workspaces and register agents with OpenClaw
   for (const { name, agentMd } of toStart) {
     try {
       const effectiveModel = getEffectiveModel(name, agentMd.meta, config);
@@ -793,7 +831,7 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
       const workspacePath = generateWorkspace(projectDir, name, overriddenMd, sharedSoul);
       const absWorkspace = resolve(workspacePath);
 
-      // Register agent with OpenClaw (idempotent — will update if exists)
+      // Register agent with OpenClaw
       try {
         await execPromise('openclaw', [
           'agents', 'add', name,
@@ -803,11 +841,13 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
         ]);
         success(`Registered ${bold(name)} ${dim(`(${modelShortName(effectiveModel)})`)}`);
       } catch (err) {
-        // Agent may already exist — that's fine
-        if (err.message && err.message.includes('already exists')) {
-          info(`${bold(name)} already registered with OpenClaw`);
+        const msg = err.message || '';
+        if (msg.includes('already exists') || msg.includes('already')) {
+          // Try to update the model on an existing agent
+          info(`${bold(name)} already registered — updating model`);
         } else {
-          warn(`Could not register ${bold(name)}: ${err.message || 'unknown error'}`);
+          warn(`Could not register ${bold(name)}: ${msg}`);
+          continue;
         }
       }
 
@@ -825,11 +865,10 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
             '--light-context',
           ]);
         } catch {
-          // Cron job may already exist — non-fatal
+          // Cron job may already exist
         }
       }
 
-      writePid(projectDir, name, -1); // marker
       registered++;
     } catch (err) {
       error(`${bold(name)}: ${err.message}`);
@@ -841,46 +880,6 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
     error('No agents were registered.');
     console.log();
     return;
-  }
-
-  console.log();
-
-  // Step 2: Check if gateway is running, start it if not
-  let gatewayRunning = false;
-  try {
-    const healthResp = await fetch('http://127.0.0.1:18789/health');
-    gatewayRunning = healthResp.ok;
-  } catch {
-    // not running
-  }
-
-  if (!gatewayRunning) {
-    info('Starting OpenClaw gateway...');
-
-    const method = openInTerminal(
-      'OpenClaw Gateway',
-      'openclaw gateway',
-      resolve(projectDir),
-    );
-
-    if (method) {
-      success(`Gateway opened in ${method}`);
-    } else {
-      // Fallback: start in background
-      const child = spawn('openclaw', ['gateway'], {
-        stdio: 'ignore',
-        detached: true,
-        cwd: resolve(projectDir),
-      });
-      child.unref();
-      success(`Gateway started in background ${dim(`(PID ${child.pid})`)}`);
-    }
-
-    // Give gateway a moment to start
-    console.log(`  ${dim('Waiting for gateway...')}`);
-    await new Promise(r => setTimeout(r, 3000));
-  } else {
-    success('Gateway is already running');
   }
 
   console.log();
@@ -906,20 +905,18 @@ export async function persistent({ stop = false, configure = false, agents = fal
 
   printHeader();
 
-  // ── Stop (doesn't need full preflight) ──
-  if (stop) {
-    cleanStalePids(projectDir);
-    await stopAllAgents(projectDir);
-    return;
-  }
-
-  // ── Full preflight (checks workspace, agents, runtime) ──
+  // ── Full preflight (auto-creates .openclaw if missing) ──
   const { soulPath, parsed, hasOpenClaw, available } = await preflight(projectDir);
-  cleanStalePids(projectDir);
 
   // Load config
   let config = readConfig(projectDir) || { project: {}, agents: {} };
   const isConfigured = !!config._configured;
+
+  // ── --stop: stop all agents ──
+  if (stop) {
+    await stopAllAgents(projectDir, config, parsed);
+    return;
+  }
 
   // ── --models: list installed and recommended models ──
   if (models) {
@@ -942,25 +939,19 @@ export async function persistent({ stop = false, configure = false, agents = fal
 
   // ── --start: launch agents ──
   if (start) {
-    await runStart(projectDir, parsed, config, soulPath, hasOpenClaw);
+    await runStart(projectDir, parsed, config, soulPath, hasOpenClaw, available);
     return;
   }
 
   // ── Bare `serpentstack persistent` ──
   if (isConfigured) {
-    // Show dashboard
-    printStatusDashboard(config, parsed, projectDir);
+    printStatusDashboard(config, parsed);
 
     const enabledAgents = parsed.filter(a => isAgentEnabled(a.name, config));
-    const runningNames = new Set(listPids(projectDir).map(p => p.name));
-    const startable = enabledAgents.filter(a => !runningNames.has(a.name));
-
-    if (startable.length === 0 && runningNames.size > 0) {
-      info('All enabled agents are running.');
-    } else if (startable.length === 0) {
+    if (enabledAgents.length === 0) {
       info('No agents are enabled.');
     } else {
-      info(`${startable.length} agent(s) ready to start.`);
+      info(`${enabledAgents.length} agent(s) enabled.`);
     }
 
     console.log();
@@ -976,8 +967,6 @@ export async function persistent({ stop = false, configure = false, agents = fal
   }
 
   // ── First-time setup: guided walkthrough ──
-
-  // Step 0: Show runtime status
   const canLaunch = printPreflightStatus(hasOpenClaw, available);
 
   if (!canLaunch) {
@@ -985,11 +974,10 @@ export async function persistent({ stop = false, configure = false, agents = fal
     console.log(`    ${dim('$')} ${bold('serpentstack persistent')}`);
     console.log();
 
-    // Still let them configure even without OpenClaw
     const rl = createInterface({ input: stdin, output: stdout });
     let proceed;
     try {
-      proceed = await askYesNo(rl, `Continue with project configuration anyway?`, true);
+      proceed = await askYesNo(rl, 'Continue with project configuration anyway?', true);
     } finally {
       rl.close();
     }
@@ -1011,7 +999,7 @@ export async function persistent({ stop = false, configure = false, agents = fal
 
   // Step 3: Launch (only if OpenClaw is installed)
   if (canLaunch) {
-    await runStart(projectDir, parsed, config, soulPath, hasOpenClaw);
+    await runStart(projectDir, parsed, config, soulPath, hasOpenClaw, available);
   } else {
     console.log();
     info('Skipping launch — install OpenClaw first, then run:');
