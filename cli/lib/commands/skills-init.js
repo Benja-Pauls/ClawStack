@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { downloadFile } from '../utils/github.js';
 import { safeWrite } from '../utils/fs-helpers.js';
-import { readConfig, writeConfig, detectTemplateDefaults, defaultAgentConfig } from '../utils/config.js';
+import { readConfig, writeConfig, detectProjectDefaults, detectTemplateDefaults, defaultAgentConfig } from '../utils/config.js';
 import { parseAgentMd, discoverAgents } from '../utils/agent-utils.js';
 import { info, success, warn, error, spinner, bold, dim, green, cyan, divider, printBox, printPrompt, printHeader, fileStatus } from '../utils/ui.js';
 
@@ -87,15 +87,18 @@ export async function skillsInit({ force = false } = {}) {
   // Generate default config.json if it doesn't exist
   const projectDir = process.cwd();
   if (!readConfig(projectDir)) {
-    const templateDefaults = detectTemplateDefaults(projectDir) || {};
+    // Auto-detect project info from filesystem
+    const detected = detectProjectDefaults(projectDir);
+    // SerpentStack template overrides (more specific)
+    const template = detectTemplateDefaults(projectDir);
     const config = {
       project: {
-        name: templateDefaults.name || '',
-        language: templateDefaults.language || '',
-        framework: templateDefaults.framework || '',
-        devCmd: templateDefaults.devCmd || '',
-        testCmd: templateDefaults.testCmd || '',
-        conventions: templateDefaults.conventions || '',
+        name: template?.name || detected.name,
+        language: template?.language || detected.language,
+        framework: template?.framework || detected.framework,
+        devCmd: template?.devCmd || detected.devCmd,
+        testCmd: template?.testCmd || detected.testCmd,
+        conventions: template?.conventions || detected.conventions,
       },
       agents: {},
     };

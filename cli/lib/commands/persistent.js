@@ -18,6 +18,7 @@ import {
 import {
   readConfig,
   writeConfig,
+  detectProjectDefaults,
   detectTemplateDefaults,
   getEffectiveModel,
   isAgentEnabled,
@@ -352,18 +353,19 @@ export async function persistent({ stop = false, reconfigure = false } = {}) {
 
   try {
     // ── Project configuration ──
-    const templateDefaults = detectTemplateDefaults(projectDir);
+    const detected = detectProjectDefaults(projectDir);
+    const template = detectTemplateDefaults(projectDir);
     const existing = config.project || {};
     const defaults = {
-      name: existing.name || templateDefaults?.name || '',
-      language: existing.language || templateDefaults?.language || '',
-      framework: existing.framework || templateDefaults?.framework || '',
-      devCmd: existing.devCmd || templateDefaults?.devCmd || '',
-      testCmd: existing.testCmd || templateDefaults?.testCmd || '',
-      conventions: existing.conventions || templateDefaults?.conventions || '',
+      name: existing.name || template?.name || detected.name,
+      language: existing.language || template?.language || detected.language,
+      framework: existing.framework || template?.framework || detected.framework,
+      devCmd: existing.devCmd || template?.devCmd || detected.devCmd,
+      testCmd: existing.testCmd || template?.testCmd || detected.testCmd,
+      conventions: existing.conventions || template?.conventions || detected.conventions,
     };
 
-    if (templateDefaults && !existing.name) {
+    if (template && !existing.name) {
       info('Detected SerpentStack template — defaults pre-filled');
       console.log();
     }

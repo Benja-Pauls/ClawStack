@@ -10,15 +10,15 @@
   "agents": {
     "log-watcher": {
       "enabled": true,
-      "model": "anthropic/claude-haiku-4-20250414"
+      "model": "ollama/llama3.2"
     },
     "skill-maintainer": {
       "enabled": true,
-      "model": "anthropic/claude-sonnet-4-20250514"
+      "model": "ollama/llama3.2"
     },
     "test-runner": {
       "enabled": true,
-      "model": "anthropic/claude-haiku-4-20250414"
+      "model": "ollama/llama3.2"
     }
   }
 }

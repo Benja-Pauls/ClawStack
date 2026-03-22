@@ -1,10 +1,10 @@
 {
   "name": "serpentstack",
-  "version": "0.2.7",
+  "version": "0.2.9",
   "description": "CLI for SerpentStack — AI-driven development standards with project-specific skills and persistent agents",
   "type": "module",
   "bin": {
-    "serpentstack": "./bin/serpentstack.js"
+    "serpentstack": "bin/serpentstack.js"
   },
   "engines": {
     "node": ">=22"
@@ -27,7 +27,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Benja-Pauls/SerpentStack"
+    "url": "git+https://github.com/Benja-Pauls/SerpentStack.git"
   },
   "homepage": "https://github.com/Benja-Pauls/SerpentStack#readme",
   "author": "Ben Paulson"
