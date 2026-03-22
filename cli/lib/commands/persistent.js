@@ -65,7 +65,7 @@ async function pickModel(rl, agentName, currentModel, available) {
       const params = m.params ? dim(` ${m.params}`) : '';
       const quant = m.quant ? dim(` ${m.quant}`) : '';
       const size = m.size ? dim(` (${m.size})`) : '';
-      const tag = isCurrent ? green(' \u2190 current') : '';
+      const tag = isCurrent ? green(' ← current') : '';
       console.log(`  ${marker} ${num} ${label}${params}${quant}${size}${tag}`);
     }
   }
@@ -82,7 +82,7 @@ async function pickModel(rl, agentName, currentModel, available) {
       const num = dim(`${idx + 1}.`);
       const label = isCurrent ? bold(m.name) : m.name;
       const provider = m.provider ? dim(` (${m.provider})`) : '';
-      const tag = isCurrent ? green(' \u2190 current') : '';
+      const tag = isCurrent ? green(' ← current') : '';
       console.log(`  ${marker} ${num} ${label}${provider}${tag}`);
     }
   }
@@ -90,7 +90,6 @@ async function pickModel(rl, agentName, currentModel, available) {
   // If current model isn't in either list, add it
   if (!choices.some(c => c.id === currentModel)) {
     choices.unshift({ id: currentModel, name: modelShortName(currentModel), tier: 'custom' });
-    // Re-render isn't needed since we'll just note it
     console.log(`    ${dim(`Current: ${modelShortName(currentModel)} (not in detected models)`)}`);
   }
 
@@ -157,7 +156,6 @@ end tell`;
       try {
         const child = spawn(bin, args, { stdio: 'ignore', detached: true });
         child.unref();
-        // Verify it didn't immediately fail
         const alive = child.pid && !child.killed;
         if (alive) return bin;
       } catch { continue; }
@@ -197,7 +195,6 @@ function stopAllAgents(projectDir) {
     } catch (err) {
       if (err.code === 'ESRCH') {
         removePid(projectDir, name);
-        // Don't count already-dead processes as "stopped"
       } else {
         error(`Failed to stop ${bold(name)}: ${err.message}`);
       }
@@ -235,124 +232,24 @@ function printAgentLine(name, agentMd, config, statusInfo) {
   }
 }
 
-// ─── Main Flow ──────────────────────────────────────────────
+function printStatusDashboard(config, parsed, projectDir) {
+  console.log(`  ${bold(config.project.name)} ${dim(`— ${config.project.framework}`)}`);
+  console.log(`  ${dim(`Dev: ${config.project.devCmd} · Test: ${config.project.testCmd}`)}`);
+  console.log();
 
-export async function persistent({ stop = false, reconfigure = false } = {}) {
-  const projectDir = process.cwd();
-
-  printHeader();
-
-  // ── Stop ──
-  if (stop) {
-    stopAllAgents(projectDir);
-    return;
+  for (const { name, agentMd } of parsed) {
+    const statusInfo = getAgentStatus(projectDir, name, config);
+    printAgentLine(name, agentMd, config, statusInfo);
   }
+  console.log();
+}
 
-  // ── Preflight checks ──
-  const soulPath = join(projectDir, '.openclaw/SOUL.md');
-  if (!existsSync(soulPath)) {
-    error('No .openclaw/ workspace found.');
-    console.log(`  Run ${bold('serpentstack skills')} first to download the workspace files.`);
-    console.log();
-    process.exit(1);
-  }
+// ─── Configure Flow (project settings) ─────────────────────
 
-  const agents = discoverAgents(projectDir);
-  if (agents.length === 0) {
-    error('No agents found in .openclaw/agents/');
-    console.log(`  Run ${bold('serpentstack skills')} to download the default agents,`);
-    console.log(`  or create your own at ${bold('.openclaw/agents/<name>/AGENT.md')}`);
-    console.log();
-    process.exit(1);
-  }
-
-  // Check OpenClaw early — don't waste time configuring if it's missing
-  const hasOpenClaw = await which('openclaw');
-  if (!hasOpenClaw) {
-    warn('OpenClaw is not installed.');
-    console.log();
-    console.log(`  ${dim('OpenClaw is the persistent agent runtime.')}`);
-    console.log(`  ${dim('Install it first, then re-run this command:')}`);
-    console.log();
-    console.log(`  ${dim('$')} ${bold('npm install -g openclaw@latest')}`);
-    console.log(`  ${dim('$')} ${bold('serpentstack persistent')}`);
-    console.log();
-    process.exit(1);
-  }
-
-  cleanStalePids(projectDir);
-
-  // Parse agent definitions
-  const parsed = [];
-  for (const agent of agents) {
-    try {
-      const agentMd = parseAgentMd(agent.agentMdPath);
-      parsed.push({ ...agent, agentMd });
-    } catch (err) {
-      warn(`Skipping ${bold(agent.name)}: ${err.message}`);
-    }
-  }
-  if (parsed.length === 0) {
-    error('No valid AGENT.md files found.');
-    console.log();
-    process.exit(1);
-  }
-
-  // Load config
-  let config = readConfig(projectDir) || { project: {}, agents: {} };
-  const needsSetup = !config.project?.name || reconfigure;
-
-  // Detect models in background while we show status
-  const modelsPromise = detectModels();
-
-  // ── If configured, show status dashboard ──
-  if (!needsSetup) {
-    console.log(`  ${bold(config.project.name)} ${dim(`— ${config.project.framework}`)}`);
-    console.log(`  ${dim(`Dev: ${config.project.devCmd} · Test: ${config.project.testCmd}`)}`);
-    console.log();
-
-    for (const { name, agentMd } of parsed) {
-      const statusInfo = getAgentStatus(projectDir, name, config);
-      printAgentLine(name, agentMd, config, statusInfo);
-    }
-    console.log();
-
-    // Determine what to do
-    const enabledAgents = parsed.filter(a => isAgentEnabled(a.name, config));
-    const runningNames = new Set(listPids(projectDir).map(p => p.name));
-    const startable = enabledAgents.filter(a => !runningNames.has(a.name));
-
-    if (startable.length === 0 && runningNames.size > 0) {
-      info('All enabled agents are running.');
-      console.log(`  ${dim('Run')} ${bold('serpentstack persistent --stop')} ${dim('to stop them.')}`);
-      console.log(`  ${dim('Run')} ${bold('serpentstack persistent --reconfigure')} ${dim('to change settings.')}`);
-      console.log();
-      return;
-    }
-
-    if (startable.length === 0) {
-      info('No agents are enabled.');
-      console.log(`  ${dim('Run')} ${bold('serpentstack persistent --reconfigure')} ${dim('to enable agents.')}`);
-      console.log();
-      return;
-    }
-
-    // Start startable agents
-    await launchAgents(projectDir, startable, config, soulPath);
-    return;
-  }
-
-  // ── First-time setup / reconfigure ──
-  if (reconfigure) {
-    info('Reconfiguring...');
-    console.log();
-  }
-
+async function runConfigure(projectDir, config, soulPath) {
   const rl = createInterface({ input: stdin, output: stdout });
-  let configDirty = false;
 
   try {
-    // ── Project configuration ──
     const detected = detectProjectDefaults(projectDir);
     const template = detectTemplateDefaults(projectDir);
     const existing = config.project || {};
@@ -382,13 +279,12 @@ export async function persistent({ stop = false, reconfigure = false } = {}) {
       testCmd: await ask(rl, 'Test command', defaults.testCmd),
       conventions: await ask(rl, 'Key conventions', defaults.conventions),
     };
-    configDirty = true;
 
-    // Update SOUL.md
+    // Update SOUL.md with project context
     if (existsSync(soulPath)) {
       let soul = readFileSync(soulPath, 'utf8');
       const ctx = [
-        `# ${config.project.name} \u2014 Persistent Development Agents`,
+        `# ${config.project.name} — Persistent Development Agents`,
         '',
         `**Project:** ${config.project.name}`,
         `**Language:** ${config.project.language}`,
@@ -405,25 +301,40 @@ export async function persistent({ stop = false, reconfigure = false } = {}) {
     console.log();
     success(`Updated ${bold('.openclaw/SOUL.md')}`);
     console.log();
+  } finally {
+    rl.close();
+  }
 
-    // ── Agent configuration ──
-    const available = await modelsPromise;
+  // Mark as user-confirmed
+  config._configured = true;
+  writeConfig(projectDir, config);
+  success(`Saved ${bold('.openclaw/config.json')}`);
+  console.log();
+}
 
-    if (available.local.length > 0) {
-      info(`${available.local.length} local model(s) detected via Ollama`);
-    } else {
-      warn('No local models found. Install Ollama and pull a model for free persistent agents:');
-      console.log(`  ${dim('$')} ${bold('ollama pull llama3.2')}`);
-    }
-    if (available.hasApiKey) {
-      info('API key configured for cloud models');
-    }
-    console.log();
+// ─── Agents Flow (enable/disable + model selection) ─────────
 
-    divider('Agents');
-    console.log(`  ${dim('Enable/disable each agent and pick a model.')}`);
-    console.log();
+async function runAgents(projectDir, config, parsed) {
+  const available = await detectModels();
 
+  if (available.local.length > 0) {
+    info(`${available.local.length} local model(s) detected via Ollama`);
+  } else {
+    warn('No local models found. Install Ollama and pull a model for free persistent agents:');
+    console.log(`  ${dim('$')} ${bold('ollama pull llama3.2')}`);
+  }
+  if (available.hasApiKey) {
+    info('API key configured for cloud models');
+  }
+  console.log();
+
+  divider('Agents');
+  console.log(`  ${dim('Enable/disable each agent and pick a model.')}`);
+  console.log();
+
+  const rl = createInterface({ input: stdin, output: stdout });
+
+  try {
     for (const { name, agentMd } of parsed) {
       const existingAgent = config.agents?.[name];
       const currentEnabled = existingAgent?.enabled !== false;
@@ -443,43 +354,41 @@ export async function persistent({ stop = false, reconfigure = false } = {}) {
 
       config.agents[name] = { enabled, model };
 
-      const status = enabled ? green('\u2713 enabled') : dim('\u2717 disabled');
+      const status = enabled ? green('✓ enabled') : dim('✗ disabled');
       const modelLabel = enabled ? `, ${modelShortName(model)}` : '';
       console.log(`    ${status}${modelLabel}`);
       console.log();
     }
-
-    configDirty = true;
   } finally {
     rl.close();
-    // Only save if we completed configuration
-    if (configDirty) {
-      writeConfig(projectDir, config);
-      success(`Saved ${bold('.openclaw/config.json')}`);
-      console.log();
-    }
   }
 
-  // Show status and launch
-  for (const { name, agentMd } of parsed) {
-    const statusInfo = getAgentStatus(projectDir, name, config);
-    printAgentLine(name, agentMd, config, statusInfo);
-  }
+  config._configured = true;
+  writeConfig(projectDir, config);
+  success(`Saved ${bold('.openclaw/config.json')}`);
   console.log();
+}
 
+// ─── Start Flow ─────────────────────────────────────────────
+
+async function runStart(projectDir, parsed, config, soulPath) {
   const enabledAgents = parsed.filter(a => isAgentEnabled(a.name, config));
-  if (enabledAgents.length === 0) {
-    info('No agents enabled. Run with --reconfigure to enable agents.');
+  const runningNames = new Set(listPids(projectDir).map(p => p.name));
+  const startable = enabledAgents.filter(a => !runningNames.has(a.name));
+
+  if (startable.length === 0 && runningNames.size > 0) {
+    info('All enabled agents are already running.');
     console.log();
     return;
   }
 
-  await launchAgents(projectDir, enabledAgents, config, soulPath);
-}
+  if (startable.length === 0) {
+    info('No agents are enabled.');
+    console.log(`  ${dim('Run')} ${bold('serpentstack persistent --agents')} ${dim('to enable agents.')}`);
+    console.log();
+    return;
+  }
 
-// ─── Launch Flow ────────────────────────────────────────────
-
-async function launchAgents(projectDir, agentsToStart, config, soulPath) {
   const rl = createInterface({ input: stdin, output: stdout });
   const toStart = [];
 
@@ -487,7 +396,7 @@ async function launchAgents(projectDir, agentsToStart, config, soulPath) {
     divider('Launch');
     console.log();
 
-    for (const agent of agentsToStart) {
+    for (const agent of startable) {
       const model = getEffectiveModel(agent.name, agent.agentMd.meta, config);
       const yes = await askYesNo(rl, `Start ${bold(agent.name)} ${dim(`(${modelShortName(model)})`)}?`, true);
       if (yes) toStart.push(agent);
@@ -525,14 +434,11 @@ async function launchAgents(projectDir, agentsToStart, config, soulPath) {
       const method = openInTerminal(`SerpentStack: ${name}`, openclawCmd, absProject);
 
       if (method) {
-        // For terminal-spawned agents, record workspace path so we can track it
-        // The terminal process will create its own PID — we record ours as a marker
         writePid(projectDir, name, -1); // -1 = terminal-managed
         success(`${bold(name)} opened in ${method} ${dim(`(${modelShortName(effectiveModel)})`)}`);
         started++;
       } else {
-        // Fallback: background process
-        warn(`No terminal detected \u2014 starting ${bold(name)} in background`);
+        warn(`No terminal detected — starting ${bold(name)} in background`);
         const child = spawn('openclaw', ['start', '--workspace', absWorkspace], {
           stdio: 'ignore',
           detached: true,
@@ -554,9 +460,145 @@ async function launchAgents(projectDir, agentsToStart, config, soulPath) {
     success(`${started} agent(s) launched — fangs out 🐍`);
     console.log();
     printBox('Manage agents', [
-      `${dim('$')} ${bold('serpentstack persistent')}                ${dim('# status + start')}`,
-      `${dim('$')} ${bold('serpentstack persistent --stop')}         ${dim('# stop all')}`,
-      `${dim('$')} ${bold('serpentstack persistent --reconfigure')}  ${dim('# change models')}`,
+      `${dim('$')} ${bold('serpentstack persistent')}              ${dim('# status dashboard')}`,
+      `${dim('$')} ${bold('serpentstack persistent --start')}      ${dim('# launch agents')}`,
+      `${dim('$')} ${bold('serpentstack persistent --stop')}       ${dim('# stop all')}`,
+      `${dim('$')} ${bold('serpentstack persistent --configure')}  ${dim('# edit project settings')}`,
+      `${dim('$')} ${bold('serpentstack persistent --agents')}     ${dim('# change models')}`,
     ]);
   }
+}
+
+// ─── Main Entry Point ───────────────────────────────────────
+
+export async function persistent({ stop = false, configure = false, agents = false, start = false } = {}) {
+  const projectDir = process.cwd();
+
+  printHeader();
+
+  // ── Stop ──
+  if (stop) {
+    stopAllAgents(projectDir);
+    return;
+  }
+
+  // ── Preflight checks ──
+  const soulPath = join(projectDir, '.openclaw/SOUL.md');
+  if (!existsSync(soulPath)) {
+    error('No .openclaw/ workspace found.');
+    console.log(`  Run ${bold('serpentstack skills')} first to download the workspace files.`);
+    console.log();
+    process.exit(1);
+  }
+
+  const agentDirs = discoverAgents(projectDir);
+  if (agentDirs.length === 0) {
+    error('No agents found in .openclaw/agents/');
+    console.log(`  Run ${bold('serpentstack skills')} to download the default agents,`);
+    console.log(`  or create your own at ${bold('.openclaw/agents/<name>/AGENT.md')}`);
+    console.log();
+    process.exit(1);
+  }
+
+  // Check OpenClaw early
+  const hasOpenClaw = await which('openclaw');
+  if (!hasOpenClaw) {
+    warn('OpenClaw is not installed.');
+    console.log();
+    console.log(`  ${dim('OpenClaw is the persistent agent runtime.')}`);
+    console.log(`  ${dim('Install it first, then re-run this command:')}`);
+    console.log();
+    console.log(`  ${dim('$')} ${bold('npm install -g openclaw@latest')}`);
+    console.log(`  ${dim('$')} ${bold('serpentstack persistent')}`);
+    console.log();
+    process.exit(1);
+  }
+
+  cleanStalePids(projectDir);
+
+  // Parse agent definitions
+  const parsed = [];
+  for (const agent of agentDirs) {
+    try {
+      const agentMd = parseAgentMd(agent.agentMdPath);
+      parsed.push({ ...agent, agentMd });
+    } catch (err) {
+      warn(`Skipping ${bold(agent.name)}: ${err.message}`);
+    }
+  }
+  if (parsed.length === 0) {
+    error('No valid AGENT.md files found.');
+    console.log();
+    process.exit(1);
+  }
+
+  // Load config
+  let config = readConfig(projectDir) || { project: {}, agents: {} };
+  const isConfigured = !!config._configured;
+
+  // ── Explicit flag: --configure ──
+  if (configure) {
+    await runConfigure(projectDir, config, soulPath);
+    return;
+  }
+
+  // ── Explicit flag: --agents ──
+  if (agents) {
+    config = readConfig(projectDir) || config; // re-read in case --configure was run first
+    await runAgents(projectDir, config, parsed);
+    return;
+  }
+
+  // ── Explicit flag: --start ──
+  if (start) {
+    await runStart(projectDir, parsed, config, soulPath);
+    return;
+  }
+
+  // ── Default: bare `serpentstack persistent` ──
+  if (isConfigured) {
+    // Already set up — show dashboard
+    printStatusDashboard(config, parsed, projectDir);
+
+    const enabledAgents = parsed.filter(a => isAgentEnabled(a.name, config));
+    const runningNames = new Set(listPids(projectDir).map(p => p.name));
+    const startable = enabledAgents.filter(a => !runningNames.has(a.name));
+
+    if (startable.length === 0 && runningNames.size > 0) {
+      info('All enabled agents are running.');
+    } else if (startable.length === 0) {
+      info('No agents are enabled.');
+    } else {
+      info(`${startable.length} agent(s) ready to start.`);
+    }
+
+    console.log();
+    printBox('Commands', [
+      `${dim('$')} ${bold('serpentstack persistent --start')}      ${dim('# launch agents')}`,
+      `${dim('$')} ${bold('serpentstack persistent --stop')}       ${dim('# stop all')}`,
+      `${dim('$')} ${bold('serpentstack persistent --configure')}  ${dim('# edit project settings')}`,
+      `${dim('$')} ${bold('serpentstack persistent --agents')}     ${dim('# change models')}`,
+    ]);
+    console.log();
+    return;
+  }
+
+  // ── First-time setup: full walkthrough ──
+  info('First-time setup — let\'s configure your project and agents.');
+  console.log();
+
+  // Step 1: Project settings
+  await runConfigure(projectDir, config, soulPath);
+
+  // Re-read config (runConfigure saved it)
+  config = readConfig(projectDir) || config;
+
+  // Step 2: Agent settings
+  await runAgents(projectDir, config, parsed);
+
+  // Re-read config (runAgents saved it)
+  config = readConfig(projectDir) || config;
+
+  // Step 3: Launch
+  await runStart(projectDir, parsed, config, soulPath);
 }

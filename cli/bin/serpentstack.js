@@ -68,9 +68,11 @@ function showHelp() {
   divider('Any project');
   console.log(`    ${cyan('skills')}                        Download all skills + persistent agent configs`);
   console.log(`    ${cyan('skills update')}                 Update base skills to latest versions`);
-  console.log(`    ${cyan('persistent')}                    Manage and launch persistent background agents`);
+  console.log(`    ${cyan('persistent')}                    Status dashboard (first run = full setup)`);
+  console.log(`    ${cyan('persistent')} ${dim('--configure')}       Edit project settings`);
+  console.log(`    ${cyan('persistent')} ${dim('--agents')}          Change agent models, enable/disable`);
+  console.log(`    ${cyan('persistent')} ${dim('--start')}           Launch enabled agents`);
   console.log(`    ${cyan('persistent')} ${dim('--stop')}            Stop all running agents`);
-  console.log(`    ${cyan('persistent')} ${dim('--reconfigure')}     Change models, enable/disable agents`);
   console.log();
 
   divider('Options');
@@ -134,7 +136,12 @@ async function main() {
     }
   } else if (noun === 'persistent') {
     const { persistent } = await import('../lib/commands/persistent.js');
-    await persistent({ stop: !!flags.stop, reconfigure: !!flags.reconfigure });
+    await persistent({
+      stop: !!flags.stop,
+      configure: !!flags.configure,
+      agents: !!flags.agents,
+      start: !!flags.start,
+    });
   } else {
     error(`Unknown command: ${bold(noun)}`);
     const suggestion = suggestCommand(noun);

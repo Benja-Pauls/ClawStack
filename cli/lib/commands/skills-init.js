@@ -139,11 +139,10 @@ export async function skillsInit({ force = false } = {}) {
   ]);
 
   printBox('Want persistent background agents too?', [
-    `${dim('$')} ${bold('serpentstack persistent')}`,
+    `${dim('$')} ${bold('serpentstack persistent')}              ${dim('# first-time setup walkthrough')}`,
     '',
-    `${dim('Agents that watch your dev server, run tests, and keep')}`,
-    `${dim('skills fresh — each in its own terminal. Pick which to')}`,
-    `${dim('run and choose local or cloud models.')}`,
+    `${dim('Configures your project, picks models, and launches')}`,
+    `${dim('agents — each in its own terminal window.')}`,
   ]);
   console.log();
 }
