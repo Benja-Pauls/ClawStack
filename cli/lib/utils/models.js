@@ -183,16 +183,20 @@ async function detectOpenClawAuth() {
 
   try {
     const status = await execAsync('openclaw', ['models', 'status']);
-    if (status.includes('api_key') || status.includes('configured')) {
+    // Check for API key in status output (e.g. "api_key=1" or "Configured models")
+    if (status.includes('api_key=') || status.includes('Configured models')) {
       result.hasApiKey = true;
     }
 
-    const list = await execAsync('openclaw', ['models', 'list', '--json']);
+    // Try JSON output first, fall back to text parsing
     try {
-      const models = JSON.parse(list);
-      if (Array.isArray(models)) {
-        result.models = models
-          .filter(m => m.available && !m.local)
+      const list = await execAsync('openclaw', ['models', 'list', '--json']);
+      const parsed = JSON.parse(list);
+      // Handle both { models: [...] } and bare array
+      const modelsArr = Array.isArray(parsed) ? parsed : (parsed.models || []);
+      if (modelsArr.length > 0) {
+        result.models = modelsArr
+          .filter(m => !m.local) // only cloud models
           .map(m => ({
             id: m.key || m.name,
             name: modelShortName(m.key || m.name),
@@ -201,13 +205,16 @@ async function detectOpenClawAuth() {
           }));
       }
     } catch {
-      const text = await execAsync('openclaw', ['models', 'list']);
-      const lines = text.trim().split('\n').filter(l => l.trim() && !l.startsWith('Model'));
-      result.models = lines.map(l => {
-        const id = l.trim().split(/\s+/)[0];
-        if (!id || id.length < 3) return null;
-        return { id, name: modelShortName(id), provider: id.split('/')[0], tier: 'cloud' };
-      }).filter(Boolean);
+      // Fall back to text output parsing
+      try {
+        const text = await execAsync('openclaw', ['models', 'list']);
+        const lines = text.trim().split('\n').filter(l => l.trim() && !l.startsWith('Model'));
+        result.models = lines.map(l => {
+          const id = l.trim().split(/\s+/)[0];
+          if (!id || id.length < 3) return null;
+          return { id, name: modelShortName(id), provider: id.split('/')[0], tier: 'cloud' };
+        }).filter(Boolean);
+      } catch { /* use fallback below */ }
     }
   } catch {
     result.models = [

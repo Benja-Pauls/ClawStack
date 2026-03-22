@@ -174,18 +174,65 @@ function printPreflightStatus(hasOpenClaw, available) {
   return hasOpenClaw;
 }
 
+// ─── Model Install ──────────────────────────────────────────
+
+/**
+ * Run `ollama pull <model>` with live progress output.
+ * Returns true if the pull succeeded.
+ */
+function ollamaPull(modelName) {
+  return new Promise((resolve) => {
+    console.log();
+    info(`Downloading ${bold(modelName)}... ${dim('(this may take a few minutes)')}`);
+    console.log();
+
+    const child = spawn('ollama', ['pull', modelName], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    // Stream progress to the terminal
+    child.stdout.on('data', (data) => {
+      const line = data.toString().trim();
+      if (line) process.stderr.write(`    ${line}\r`);
+    });
+    child.stderr.on('data', (data) => {
+      const line = data.toString().trim();
+      if (line) process.stderr.write(`    ${line}\r`);
+    });
+
+    child.on('close', (code) => {
+      process.stderr.write('\x1b[K'); // clear the progress line
+      if (code === 0) {
+        success(`${bold(modelName)} installed`);
+        console.log();
+        resolve(true);
+      } else {
+        error(`Failed to download ${bold(modelName)} (exit code ${code})`);
+        console.log();
+        resolve(false);
+      }
+    });
+
+    child.on('error', (err) => {
+      error(`Could not run ollama pull: ${err.message}`);
+      console.log();
+      resolve(false);
+    });
+  });
+}
+
 // ─── Model Picker ───────────────────────────────────────────
 
 async function pickModel(rl, agentName, currentModel, available) {
   const choices = [];
 
-  // Local models first
+  // Section 1: Installed local models
   if (available.local.length > 0) {
-    console.log(`    ${dim('── Local')} ${green('free')} ${dim('──────────────────────')}`);
+    console.log(`    ${dim('── Installed')} ${green('ready')} ${dim('────────────────────')}`);
     for (const m of available.local) {
       const isCurrent = m.id === currentModel;
       const idx = choices.length;
-      choices.push(m);
+      choices.push({ ...m, action: 'use' });
       const marker = isCurrent ? green('>') : ' ';
       const num = dim(`${idx + 1}.`);
       const label = isCurrent ? bold(m.name) : m.name;
@@ -197,14 +244,48 @@ async function pickModel(rl, agentName, currentModel, available) {
     }
   }
 
-  // Cloud models
+  // Section 2: Recommended models (not installed, auto-download on select)
+  if (available.ollamaInstalled && available.recommended.length > 0) {
+    const liveTag = available.recommendedLive
+      ? dim(`fetched from ollama.com`)
+      : dim(`cached list`);
+    console.log(`    ${dim('── Download')} ${cyan('free')} ${dim('(')}${liveTag}${dim(') ──')}`);
+    // Show a reasonable subset (not 50 models)
+    const toShow = available.recommended.slice(0, 8);
+    for (const r of toShow) {
+      const idx = choices.length;
+      const isCurrent = `ollama/${r.name}` === currentModel;
+      choices.push({
+        id: `ollama/${r.name}`,
+        name: r.name,
+        params: r.params,
+        size: r.size,
+        description: r.description,
+        tier: 'downloadable',
+        action: 'download',
+      });
+      const marker = isCurrent ? green('>') : ' ';
+      const num = dim(`${idx + 1}.`);
+      const label = isCurrent ? bold(r.name) : r.name;
+      const params = r.params ? dim(` ${r.params}`) : '';
+      const size = r.size ? dim(` (${r.size})`) : '';
+      const desc = r.description ? dim(` — ${r.description}`) : '';
+      const tag = isCurrent ? green(' ← current') : '';
+      console.log(`  ${marker} ${num} ${label}${params}${size}${desc}${tag}`);
+    }
+    if (available.recommended.length > toShow.length) {
+      console.log(`    ${dim(`... and ${available.recommended.length - toShow.length} more at`)} ${cyan('ollama.com/library')}`);
+    }
+  }
+
+  // Section 3: Cloud models
   if (available.cloud.length > 0) {
     const apiNote = available.hasApiKey ? green('key ✓') : yellow('needs API key');
     console.log(`    ${dim('── Cloud')} ${apiNote} ${dim('─────────────────────')}`);
     for (const m of available.cloud) {
       const isCurrent = m.id === currentModel;
       const idx = choices.length;
-      choices.push(m);
+      choices.push({ ...m, action: 'use' });
       const marker = isCurrent ? green('>') : ' ';
       const num = dim(`${idx + 1}.`);
       const label = isCurrent ? bold(m.name) : m.name;
@@ -216,13 +297,14 @@ async function pickModel(rl, agentName, currentModel, available) {
 
   if (choices.length === 0) {
     warn('No models available. Install Ollama and pull a model first.');
+    console.log(`    ${dim('$')} ${bold('curl -fsSL https://ollama.com/install.sh | sh')}`);
     console.log(`    ${dim('$')} ${bold('ollama pull llama3.2')}`);
     return currentModel;
   }
 
-  // If current model isn't in either list, add it
+  // If current model isn't in any list, add it at the top
   if (!choices.some(c => c.id === currentModel)) {
-    choices.unshift({ id: currentModel, name: modelShortName(currentModel), tier: 'custom' });
+    choices.unshift({ id: currentModel, name: modelShortName(currentModel), tier: 'custom', action: 'use' });
     console.log(`    ${dim(`Current: ${modelShortName(currentModel)} (not in detected models)`)}`);
   }
 
@@ -234,7 +316,21 @@ async function pickModel(rl, agentName, currentModel, available) {
 
   const selected = (idx >= 0 && idx < choices.length) ? choices[idx] : choices[Math.max(0, currentIdx)];
 
-  if (selected.tier === 'cloud' && available.local.length > 0) {
+  // If they selected a downloadable model, pull it now
+  if (selected.action === 'download') {
+    // Close rl temporarily so ollama pull can use the terminal
+    rl.pause();
+    const pulled = await ollamaPull(selected.name);
+    rl.resume();
+
+    if (!pulled) {
+      warn(`Download failed. Keeping previous model: ${bold(modelShortName(currentModel))}`);
+      return currentModel;
+    }
+  }
+
+  // Warn about cloud model costs
+  if (selected.tier === 'cloud' && (available.local.length > 0 || available.recommended.length > 0)) {
     warn(`Cloud models cost tokens per heartbeat. Consider a local model for persistent agents.`);
   }
   if (selected.tier === 'cloud' && !available.hasApiKey) {
