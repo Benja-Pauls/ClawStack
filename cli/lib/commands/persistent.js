@@ -1165,23 +1165,43 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
     const modelName = modelShortName(effectiveModel);
     const projectName = config?.project?.name || basename(projectDir);
 
-    // Build a shell command that shows a branded header then tails filtered logs
-    const header = [
-      '',
-      `  🐍 SerpentStack Agent: ${name}`,
-      `  Project: ${projectName}`,
-      `  Model: ${modelName}`,
-      `  Schedule: ${schedule}`,
-      '',
-      `  ${description}`,
-      '',
-      `  Watching for activity... (Ctrl+C to close this window)`,
-      `  ${'─'.repeat(60)}`,
-      '',
-    ].join('\\n');
+    // Write a temporary watch script (avoids shell quoting issues with osascript)
+    const scriptDir = join(homedir(), '.serpentstack', 'scripts');
+    mkdirSync(scriptDir, { recursive: true });
+    const scriptPath = join(scriptDir, `watch-${name}.sh`);
 
-    const watchCmd = `printf '${header}' && openclaw logs --follow --local-time 2>&1 | grep --line-buffered '${name}'`;
-    const method = openInTerminal(`🐍 ${name}`, watchCmd, resolve(projectDir));
+    const scriptContent = `#!/bin/bash
+clear
+echo ""
+echo "  🐍 SerpentStack Agent: ${name}"
+echo "  Project: ${projectName}"
+echo "  Model: ${modelName}"
+echo "  Schedule: ${schedule}"
+echo ""
+echo "  ${description}"
+echo ""
+echo "  Watching for activity... (Ctrl+C to close this window)"
+echo "  ────────────────────────────────────────────────────────────"
+echo ""
+
+# Stream only meaningful log lines for this agent
+openclaw logs --follow --local-time 2>&1 | while IFS= read -r line; do
+  # Only show lines mentioning this agent that are actual activity (not JSON fragments)
+  case "$line" in
+    *"${name}"*)
+      # Skip noisy JSON-only lines and internal metadata
+      case "$line" in
+        *'"agentId"'*|*'"name":'*|*'"storePath"'*) continue ;;
+        *) echo "$line" ;;
+      esac
+      ;;
+  esac
+done
+`;
+
+    writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
+
+    const method = openInTerminal(`🐍 ${name}`, `bash "${scriptPath}"`, resolve(projectDir));
 
     if (method) {
       success(`${bold(name)} → opened in ${method} ${dim(`(${modelName})`)}`);
