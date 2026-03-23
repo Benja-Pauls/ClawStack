@@ -524,7 +524,7 @@ async function stopAllAgents(projectDir, config, parsed) {
 
       // Remove agent registration from OpenClaw
       try {
-        await execPromise('openclaw', ['agents', 'delete', name]);
+        await execPromise('openclaw', ['agents', 'delete', name, '--force']);
         didSomething = true;
       } catch { /* agent may not exist */ }
     }
@@ -877,13 +877,17 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
   if (!gatewayRunning) {
     info('Starting OpenClaw gateway...');
 
-    const method = openInTerminal('OpenClaw Gateway', 'openclaw gateway', resolve(projectDir));
+    // OLLAMA_API_KEY is required by OpenClaw to talk to local Ollama models.
+    // Any value works — "ollama-local" is the convention.
+    const gwEnv = 'OLLAMA_API_KEY="ollama-local"';
+    const method = openInTerminal('OpenClaw Gateway', `${gwEnv} openclaw gateway`, resolve(projectDir));
 
     if (method) {
       success(`Gateway opened in ${method}`);
     } else {
       const child = spawn('openclaw', ['gateway'], {
         stdio: 'ignore', detached: true, cwd: resolve(projectDir),
+        env: { ...process.env, OLLAMA_API_KEY: 'ollama-local' },
       });
       child.unref();
       success(`Gateway started in background ${dim(`(PID ${child.pid})`)}`);
@@ -929,7 +933,7 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
       // Register agent with OpenClaw (delete + re-add to ensure correct model)
       try {
         // Remove existing registration if any (best-effort)
-        await execPromise('openclaw', ['agents', 'delete', name]).catch(() => {});
+        await execPromise('openclaw', ['agents', 'delete', name, '--force']).catch(() => {});
 
         await execPromise('openclaw', [
           'agents', 'add', name,
