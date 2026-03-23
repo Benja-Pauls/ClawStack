@@ -639,7 +639,7 @@ async function stopAllAgents(projectDir, config, parsed) {
   const hasOpenClaw = await which('openclaw');
   let stopped = 0;
 
-  // Get list of enabled agents from config (don't rely on PIDs)
+  // Get list of agents from config
   const agentNames = parsed
     ? parsed.map(a => a.name)
     : Object.keys(config?.agents || {});
@@ -647,22 +647,25 @@ async function stopAllAgents(projectDir, config, parsed) {
   for (const name of agentNames) {
     let didSomething = false;
 
+    // Always clean cron jobs from file (works without gateway)
+    await cleanCronJobsForAgent(name);
+
     if (hasOpenClaw) {
-      // Remove cron jobs for this agent
+      // Also try to remove via gateway API if it's running
       try {
         const out = await execPromise('openclaw', ['cron', 'list', '--json']);
         const data = JSON.parse(out);
         const jobs = Array.isArray(data) ? data : (data.jobs || []);
         const agentJobs = jobs.filter(j =>
-          j.agent === name || (j.name && j.name.startsWith(`${name}-`))
+          j.agentId === name || j.agent === name ||
+          (j.name && j.name.startsWith(`${name}-`))
         );
         for (const j of agentJobs) {
           try {
             await execPromise('openclaw', ['cron', 'rm', j.id || j.name]);
-            didSomething = true;
           } catch { /* best-effort */ }
         }
-      } catch { /* gateway might not be running */ }
+      } catch { /* gateway might not be running — file cleanup above handles it */ }
 
       // Remove agent registration from OpenClaw
       try {
@@ -671,15 +674,48 @@ async function stopAllAgents(projectDir, config, parsed) {
       } catch { /* agent may not exist */ }
     }
 
+    // Also clean via file if needed
+    if (!didSomething) {
+      // Check if the agent exists in the openclaw config file directly
+      const ocConfigPath = join(homedir(), '.openclaw', 'openclaw.json');
+      if (existsSync(ocConfigPath)) {
+        try {
+          const ocConfig = JSON.parse(readFileSync(ocConfigPath, 'utf8'));
+          const before = (ocConfig.agents?.list || []).length;
+          ocConfig.agents.list = (ocConfig.agents?.list || []).filter(a => a.id !== name && a.name !== name);
+          if (ocConfig.agents.list.length < before) {
+            writeFileSync(ocConfigPath, JSON.stringify(ocConfig, null, 2) + '\n', 'utf8');
+            didSomething = true;
+          }
+        } catch { /* best-effort */ }
+      }
+    }
+
     if (didSomething) {
       success(`Stopped ${bold(name)}`);
       stopped++;
     }
   }
 
-  if (stopped === 0) {
-    info('No agents are currently registered with OpenClaw.');
-  } else {
+  // Kill the gateway process if it's running
+  const gatewayRunning = await isGatewayRunning();
+  if (gatewayRunning) {
+    try {
+      // Find the gateway PID
+      const out = await execPromise('lsof', ['-ti', ':18789']);
+      const pids = out.trim().split('\n').filter(Boolean).map(Number);
+      for (const pid of pids) {
+        try { process.kill(pid, 'SIGTERM'); } catch { /* already dead */ }
+      }
+      success('Gateway stopped');
+    } catch {
+      warn('Could not stop gateway automatically. Close the gateway terminal manually.');
+    }
+  }
+
+  if (stopped === 0 && !gatewayRunning) {
+    info('No agents are currently running.');
+  } else if (stopped > 0) {
     console.log();
     success(`${stopped} agent(s) stopped`);
   }
@@ -1013,31 +1049,23 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
 
   console.log();
 
-  // Ensure gateway is running first
+  // Ensure Ollama is registered as a provider with OpenClaw
+  await ensureOllamaProvider();
+
+  // Ensure gateway is running (background — no visible terminal)
   let gatewayRunning = await isGatewayRunning();
 
   if (!gatewayRunning) {
-    info('Starting OpenClaw gateway...');
+    info('Starting OpenClaw gateway in background...');
 
-    // OLLAMA_API_KEY is required by OpenClaw to talk to local Ollama models.
-    // Any value works — "ollama-local" is the convention.
-    const gwEnv = 'OLLAMA_API_KEY="ollama-local"';
-    const method = openInTerminal('OpenClaw Gateway', `${gwEnv} openclaw gateway`, resolve(projectDir));
-
-    if (method) {
-      success(`Gateway opened in ${method}`);
-    } else {
-      const child = spawn('openclaw', ['gateway'], {
-        stdio: 'ignore', detached: true, cwd: resolve(projectDir),
-        env: { ...process.env, OLLAMA_API_KEY: 'ollama-local' },
-      });
-      child.unref();
-      success(`Gateway started in background ${dim(`(PID ${child.pid})`)}`);
-    }
+    const child = spawn('openclaw', ['gateway'], {
+      stdio: 'ignore', detached: true, cwd: resolve(projectDir),
+      env: { ...process.env, OLLAMA_API_KEY: 'ollama-local' },
+    });
+    child.unref();
 
     // Wait for gateway to be ready
-    console.log(`  ${dim('Waiting for gateway...')}`);
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 15; i++) {
       await new Promise(r => setTimeout(r, 1000));
       if (await isGatewayRunning()) {
         gatewayRunning = true;
@@ -1046,24 +1074,20 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
     }
 
     if (!gatewayRunning) {
-      warn('Gateway did not start in time. Agents may not run immediately.');
-      console.log(`  ${dim('Check the gateway terminal for errors, then retry with:')}`)
-      console.log(`    ${dim('$')} ${bold('serpentstack persistent --start')}`);
+      error('Gateway did not start. Check OpenClaw installation:');
+      console.log(`    ${dim('$')} ${bold('openclaw gateway')}  ${dim('# try starting manually')}`);
       console.log();
+      return;
     }
+    success('Gateway running');
   } else {
-    success('Gateway is already running');
+    success('Gateway already running');
   }
-
-  console.log();
-
-  // Ensure Ollama is registered as a provider with OpenClaw
-  // (required for local models to work)
-  await ensureOllamaProvider();
 
   // Register agents and create cron jobs
   const sharedSoul = readFileSync(soulPath, 'utf8');
   let registered = 0;
+  const launched = [];
 
   for (const { name, agentMd } of toStart) {
     try {
@@ -1097,8 +1121,6 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
         if (effectiveModel.startsWith('ollama/')) {
           ensureAgentOllamaAuth(name);
         }
-
-        success(`Registered ${bold(name)} ${dim(`(${modelShortName(effectiveModel)})`)}`);
       } catch (err) {
         warn(`Could not register ${bold(name)}: ${err.message || 'unknown error'}`);
         continue;
@@ -1122,6 +1144,7 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
         }
       }
 
+      launched.push({ name, agentMd, effectiveModel });
       registered++;
     } catch (err) {
       error(`${bold(name)}: ${err.message}`);
@@ -1135,26 +1158,106 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
     return;
   }
 
+  // Open a terminal window per agent showing its activity
+  for (const { name, agentMd, effectiveModel } of launched) {
+    const description = AGENT_SUMMARIES[name] || agentMd.meta.description || '';
+    const schedule = (agentMd.meta.schedule || []).map(s => `${s.task} (every ${s.every})`).join(', ');
+    const modelName = modelShortName(effectiveModel);
+    const projectName = config?.project?.name || basename(projectDir);
+
+    // Build a shell command that shows a branded header then tails filtered logs
+    const header = [
+      '',
+      `  🐍 SerpentStack Agent: ${name}`,
+      `  Project: ${projectName}`,
+      `  Model: ${modelName}`,
+      `  Schedule: ${schedule}`,
+      '',
+      `  ${description}`,
+      '',
+      `  Watching for activity... (Ctrl+C to close this window)`,
+      `  ${'─'.repeat(60)}`,
+      '',
+    ].join('\\n');
+
+    const watchCmd = `printf '${header}' && openclaw logs --follow --local-time 2>&1 | grep --line-buffered '${name}'`;
+    const method = openInTerminal(`🐍 ${name}`, watchCmd, resolve(projectDir));
+
+    if (method) {
+      success(`${bold(name)} → opened in ${method} ${dim(`(${modelName})`)}`);
+    } else {
+      success(`${bold(name)} registered ${dim(`(${modelName})`)}`);
+    }
+  }
+
   console.log();
-  success(`${registered} agent(s) registered — fangs out 🐍`);
+  success(`${registered} agent(s) launched — fangs out 🐍`);
   console.log();
 
   printBox('Your agents are running', [
-    `${dim('The OpenClaw gateway manages your agents on their schedules.')}`,
-    `${dim('View agent activity with:')}`,
+    `${dim('Each agent has its own terminal showing live activity.')}`,
+    `${dim('Close a terminal window to stop watching (agent keeps running).')}`,
     '',
-    `${dim('$')} ${bold('openclaw tui')}                     ${dim('# interactive terminal UI')}`,
-    `${dim('$')} ${bold('openclaw cron list')}                ${dim('# see scheduled tasks')}`,
-    `${dim('$')} ${bold('openclaw agents list')}              ${dim('# see registered agents')}`,
-    `${dim('$')} ${bold('serpentstack persistent --stop')}    ${dim('# stop all agents')}`,
+    `${dim('$')} ${bold('serpentstack persistent --watch')}   ${dim('# combined activity feed')}`,
+    `${dim('$')} ${bold('serpentstack persistent --stop')}    ${dim('# stop all agents + gateway')}`,
+    `${dim('$')} ${bold('serpentstack persistent')}           ${dim('# status dashboard')}`,
   ]);
   console.log();
 }
 
+// ─── Watch Flow ─────────────────────────────────────────────
+
+async function runWatch() {
+  const gatewayRunning = await isGatewayRunning();
+
+  if (!gatewayRunning) {
+    error('Gateway is not running. Start agents first:');
+    console.log(`    ${dim('$')} ${bold('serpentstack persistent --start')}`);
+    console.log();
+    return;
+  }
+
+  divider('Live Agent Activity');
+  console.log(`  ${dim('Streaming logs from OpenClaw gateway. Press Ctrl+C to stop.')}`);
+  console.log();
+
+  // Stream openclaw logs --follow as a child process with inherited stdio
+  const child = spawn('openclaw', ['logs', '--follow', '--local-time', '--limit', '30'], {
+    stdio: 'inherit',
+    env: { ...process.env },
+  });
+
+  // Handle clean exit on Ctrl+C
+  const handler = () => {
+    child.kill('SIGTERM');
+    console.log();
+    info('Stopped watching. Agents are still running in the background.');
+    console.log();
+    process.exit(0);
+  };
+  process.on('SIGINT', handler);
+  process.on('SIGTERM', handler);
+
+  await new Promise((resolve) => {
+    child.on('close', resolve);
+    child.on('error', (err) => {
+      error(`Could not stream logs: ${err.message}`);
+      resolve();
+    });
+  });
+}
+
 // ─── Main Entry Point ───────────────────────────────────────
 
-export async function persistent({ stop = false, configure = false, agents = false, start = false, models = false } = {}) {
+export async function persistent({ stop = false, configure = false, agents = false, start = false, models = false, watch = false } = {}) {
   const projectDir = process.cwd();
+
+  // ── --watch: live agent activity feed (no preflight needed) ──
+  if (watch) {
+    printHeader();
+    await runWatch();
+    return;
+  }
 
   printHeader();
 
@@ -1210,6 +1313,7 @@ export async function persistent({ stop = false, configure = false, agents = fal
     console.log();
     printBox('Commands', [
       `${dim('$')} ${bold('serpentstack persistent --start')}      ${dim('# launch agents')}`,
+      `${dim('$')} ${bold('serpentstack persistent --watch')}      ${dim('# live activity feed')}`,
       `${dim('$')} ${bold('serpentstack persistent --stop')}       ${dim('# stop all')}`,
       `${dim('$')} ${bold('serpentstack persistent --configure')}  ${dim('# edit project settings')}`,
       `${dim('$')} ${bold('serpentstack persistent --agents')}     ${dim('# change models')}`,

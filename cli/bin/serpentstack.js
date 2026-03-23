@@ -73,6 +73,7 @@ function showHelp() {
   console.log(`    ${cyan('persistent')} ${dim('--agents')}          Change agent models, enable/disable`);
   console.log(`    ${cyan('persistent')} ${dim('--models')}          List installed & recommended models`);
   console.log(`    ${cyan('persistent')} ${dim('--start')}           Launch enabled agents`);
+  console.log(`    ${cyan('persistent')} ${dim('--watch')}           Live agent activity feed`);
   console.log(`    ${cyan('persistent')} ${dim('--stop')}            Stop all running agents`);
   console.log();
 
@@ -143,6 +144,7 @@ async function main() {
       agents: !!flags.agents,
       start: !!flags.start,
       models: !!flags.models,
+      watch: !!flags.watch,
     });
   } else {
     error(`Unknown command: ${bold(noun)}`);
