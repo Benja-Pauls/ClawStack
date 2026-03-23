@@ -1,5 +1,6 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join, resolve, basename } from 'node:path';
+import { homedir } from 'node:os';
 import { execFile, spawn } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
@@ -62,6 +63,147 @@ async function isGatewayRunning() {
   } catch {
     return false;
   }
+}
+
+// ─── Ollama Provider Registration ────────────────────────────
+
+/**
+ * Ensure Ollama is registered as a provider in OpenClaw's config.
+ * Without this, OpenClaw rejects ollama/* models with
+ * "Ollama requires authentication to be registered as a provider."
+ */
+async function ensureOllamaProvider() {
+  const configPath = join(homedir(), '.openclaw', 'openclaw.json');
+  if (!existsSync(configPath)) return;
+
+  try {
+    const config = JSON.parse(readFileSync(configPath, 'utf8'));
+    if (!config.auth) config.auth = {};
+    if (!config.auth.profiles) config.auth.profiles = {};
+
+    if (!config.auth.profiles['ollama:default']) {
+      config.auth.profiles['ollama:default'] = {
+        provider: 'ollama',
+        mode: 'api_key',
+      };
+      writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf8');
+    }
+
+    // Also ensure the main agent's auth-profiles.json has the key
+    const mainAuthPath = join(homedir(), '.openclaw', 'agents', 'main', 'agent', 'auth-profiles.json');
+    if (existsSync(mainAuthPath)) {
+      const auth = JSON.parse(readFileSync(mainAuthPath, 'utf8'));
+      if (!auth.profiles['ollama:default']) {
+        auth.profiles['ollama:default'] = {
+          type: 'api_key',
+          provider: 'ollama',
+          key: 'ollama-local',
+        };
+        writeFileSync(mainAuthPath, JSON.stringify(auth, null, 2) + '\n', 'utf8');
+      }
+    }
+  } catch {
+    // Best-effort — don't block the flow
+  }
+}
+
+/**
+ * Ensure a specific agent's auth-profiles.json includes Ollama credentials.
+ */
+function ensureAgentOllamaAuth(agentName) {
+  const agentAuthDir = join(homedir(), '.openclaw', 'agents', agentName, 'agent');
+  const authPath = join(agentAuthDir, 'auth-profiles.json');
+
+  try {
+    mkdirSync(agentAuthDir, { recursive: true });
+
+    let auth = { version: 1, profiles: {} };
+    if (existsSync(authPath)) {
+      auth = JSON.parse(readFileSync(authPath, 'utf8'));
+    }
+
+    if (!auth.profiles['ollama:default']) {
+      auth.profiles['ollama:default'] = {
+        type: 'api_key',
+        provider: 'ollama',
+        key: 'ollama-local',
+      };
+      writeFileSync(authPath, JSON.stringify(auth, null, 2) + '\n', 'utf8');
+    }
+  } catch {
+    // Best-effort
+  }
+}
+
+// ─── Cron Job Cleanup ───────────────────────────────────────
+
+/**
+ * Remove ALL cron jobs for a given agent by editing the jobs file directly.
+ * This works even when the gateway isn't running (unlike `openclaw cron rm`).
+ */
+async function cleanCronJobsForAgent(agentName) {
+  const jobsPath = join(homedir(), '.openclaw', 'cron', 'jobs.json');
+  if (!existsSync(jobsPath)) return;
+
+  try {
+    const data = JSON.parse(readFileSync(jobsPath, 'utf8'));
+    if (!data.jobs || !Array.isArray(data.jobs)) return;
+
+    const before = data.jobs.length;
+    data.jobs = data.jobs.filter(j =>
+      j.agentId !== agentName &&
+      !(j.name && j.name.startsWith(`${agentName}-`))
+    );
+    const removed = before - data.jobs.length;
+
+    if (removed > 0) {
+      writeFileSync(jobsPath, JSON.stringify(data, null, 2) + '\n', 'utf8');
+    }
+  } catch {
+    // Best-effort — gateway will clean up on next start
+  }
+}
+
+// ─── Agent Bootstrap ────────────────────────────────────────
+
+/**
+ * Write a BOOTSTRAP.md to the agent workspace so it outputs
+ * a friendly startup greeting on first run.
+ */
+function writeAgentBootstrap(workspacePath, agentName, agentMd, config) {
+  const projectName = config?.project?.name || basename(process.cwd());
+  const schedule = (agentMd.meta.schedule || []).map(s => `${s.task} (every ${s.every})`).join(', ');
+  const description = agentMd.meta.description || 'Background agent';
+
+  const bootstrap = `# 🐍 SerpentStack Persistent Agent — Reporting for Slithering!
+
+## Agent: ${agentName}
+**Project:** ${projectName}
+**Purpose:** ${description}
+**Schedule:** ${schedule || 'on-demand'}
+**Working directory:** ${process.cwd()}
+
+## Your first task
+
+Print the following greeting, then begin your scheduled duties:
+
+\`\`\`
+🐍 SerpentStack Agent "${agentName}" is online!
+   Project: ${projectName}
+   Purpose: ${description}
+   Schedule: ${schedule}
+   Directory: ${process.cwd()}
+
+   Reporting for slithering! 🐍
+\`\`\`
+
+After printing the greeting, read SOUL.md and AGENTS.md to understand your role, then start your first scheduled task.
+
+Delete this file after reading it — you won't need it again.
+`;
+
+  const bootstrapPath = join(workspacePath, 'BOOTSTRAP.md');
+  writeFileSync(bootstrapPath, bootstrap, 'utf8');
 }
 
 // ─── Preflight ──────────────────────────────────────────────
@@ -915,6 +1057,10 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
 
   console.log();
 
+  // Ensure Ollama is registered as a provider with OpenClaw
+  // (required for local models to work)
+  await ensureOllamaProvider();
+
   // Register agents and create cron jobs
   const sharedSoul = readFileSync(soulPath, 'utf8');
   let registered = 0;
@@ -930,9 +1076,14 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
       const workspacePath = generateWorkspace(projectDir, name, overriddenMd, sharedSoul);
       const absWorkspace = resolve(workspacePath);
 
+      // Write BOOTSTRAP.md for the agent's startup greeting
+      writeAgentBootstrap(absWorkspace, name, agentMd, config);
+
+      // Clean old cron jobs for this agent BEFORE re-registering
+      await cleanCronJobsForAgent(name);
+
       // Register agent with OpenClaw (delete + re-add to ensure correct model)
       try {
-        // Remove existing registration if any (best-effort)
         await execPromise('openclaw', ['agents', 'delete', name, '--force']).catch(() => {});
 
         await execPromise('openclaw', [
@@ -941,6 +1092,12 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
           '--model', effectiveModel,
           '--non-interactive',
         ]);
+
+        // Ensure per-agent Ollama auth if using local model
+        if (effectiveModel.startsWith('ollama/')) {
+          ensureAgentOllamaAuth(name);
+        }
+
         success(`Registered ${bold(name)} ${dim(`(${modelShortName(effectiveModel)})`)}`);
       } catch (err) {
         warn(`Could not register ${bold(name)}: ${err.message || 'unknown error'}`);

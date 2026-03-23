@@ -1,6 +1,6 @@
 {
   "name": "serpentstack",
-  "version": "0.2.22",
+  "version": "0.2.25",
   "description": "CLI for SerpentStack — AI-driven development standards with project-specific skills and persistent agents",
   "type": "module",
   "bin": {
