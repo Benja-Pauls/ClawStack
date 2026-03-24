@@ -4,7 +4,7 @@ import { downloadFile } from '../utils/github.js';
 import { safeWrite } from '../utils/fs-helpers.js';
 import { readConfig, writeConfig, detectProjectDefaults, detectTemplateDefaults, defaultAgentConfig } from '../utils/config.js';
 import { parseAgentMd, discoverAgents } from '../utils/agent-utils.js';
-import { info, success, warn, error, spinner, bold, dim, green, cyan, divider, printBox, printPrompt, printHeader, fileStatus } from '../utils/ui.js';
+import { info, success, warn, error, spinner, bold, dim, green, cyan, divider, printBox, printPrompt, printHeader, fileStatus, printSnakeList } from '../utils/ui.js';
 
 const SKILLS_FILES = [
   '.skills/auth/SKILL.md',
@@ -58,15 +58,15 @@ export async function skillsInit({ force = false } = {}) {
 
   // Group output by section
   divider('Skills');
-  for (let i = 0; i < SKILLS_FILES.length; i++) logs[i] && console.log(logs[i]);
+  printSnakeList(logs.slice(0, SKILLS_FILES.length).filter(Boolean));
   console.log();
 
   divider('Persistent Agents');
-  for (let i = SKILLS_FILES.length; i < SKILLS_FILES.length + OPENCLAW_FILES.length; i++) logs[i] && console.log(logs[i]);
+  printSnakeList(logs.slice(SKILLS_FILES.length, SKILLS_FILES.length + OPENCLAW_FILES.length).filter(Boolean));
   console.log();
 
   divider('Docs');
-  for (let i = SKILLS_FILES.length + OPENCLAW_FILES.length; i < logs.length; i++) logs[i] && console.log(logs[i]);
+  printSnakeList(logs.slice(SKILLS_FILES.length + OPENCLAW_FILES.length).filter(Boolean));
   console.log();
 
   // Summary line

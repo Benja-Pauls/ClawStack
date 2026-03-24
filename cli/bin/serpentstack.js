@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { error, bold, dim, green, cyan, yellow, getVersion, printHeader, divider } from '../lib/utils/ui.js';
+import { error, bold, dim, green, cyan, yellow, getVersion, printHeader, divider, printSnakeList } from '../lib/utils/ui.js';
 
 // Short flag aliases
 const FLAG_ALIASES = { f: 'force', h: 'help', v: 'version', a: 'all' };
@@ -57,31 +57,40 @@ function editDistance(a, b) {
 
 function showHelp() {
   printHeader();
-  console.log(`  ${dim('Deployable fullstack templates + AI agent skills for any project')}`);
+  console.log(`  ${dim(green('╰─'))} ${dim('Deployable fullstack templates + AI agent skills for any project')}`);
   console.log();
 
   divider('New projects');
-  console.log(`    ${cyan('stack new')} ${dim('<name>')}             Scaffold a full project from the template`);
-  console.log(`    ${cyan('stack update')}                  Update template-level files to latest`);
+  console.log();
+  printSnakeList([
+    `${cyan('stack new')} ${dim('<name>')}             Scaffold a full project from the template`,
+    `${cyan('stack update')}                  Update template-level files to latest`,
+  ]);
   console.log();
 
   divider('Any project');
-  console.log(`    ${cyan('skills')}                        Download all skills + persistent agent configs`);
-  console.log(`    ${cyan('skills update')}                 Update base skills to latest versions`);
-  console.log(`    ${cyan('persistent')}                    Status dashboard (first run = full setup)`);
-  console.log(`    ${cyan('persistent')} ${dim('--configure')}       Edit project settings`);
-  console.log(`    ${cyan('persistent')} ${dim('--agents')}          Change agent models, enable/disable`);
-  console.log(`    ${cyan('persistent')} ${dim('--models')}          List installed & recommended models`);
-  console.log(`    ${cyan('persistent')} ${dim('--start')}           Launch enabled agents`);
-  console.log(`    ${cyan('persistent')} ${dim('--watch')}           Live agent activity feed`);
-  console.log(`    ${cyan('persistent')} ${dim('--stop')}            Stop all running agents`);
+  console.log();
+  printSnakeList([
+    `${cyan('skills')}                        Download all skills + persistent agent configs`,
+    `${cyan('skills update')}                 Update base skills to latest versions`,
+    `${cyan('persistent')}                    Status dashboard (first run = full setup)`,
+    `${cyan('persistent')} ${dim('--configure')}       Edit project settings`,
+    `${cyan('persistent')} ${dim('--agents')}          Change agent models, enable/disable`,
+    `${cyan('persistent')} ${dim('--models')}          List installed & recommended models`,
+    `${cyan('persistent')} ${dim('--start')}           Launch enabled agents`,
+    `${cyan('persistent')} ${dim('--watch')}           Live agent activity feed`,
+    `${cyan('persistent')} ${dim('--stop')}            Stop all running agents`,
+  ]);
   console.log();
 
   divider('Options');
-  console.log(`    ${bold('-f')}, ${bold('--force')}                   Overwrite existing files`);
-  console.log(`    ${bold('-a')}, ${bold('--all')}                     Include new files in updates`);
-  console.log(`    ${bold('-v')}, ${bold('--version')}                 Show version`);
-  console.log(`    ${bold('-h')}, ${bold('--help')}                    Show this help`);
+  console.log();
+  printSnakeList([
+    `${bold('-f')}, ${bold('--force')}                   Overwrite existing files`,
+    `${bold('-a')}, ${bold('--all')}                     Include new files in updates`,
+    `${bold('-v')}, ${bold('--version')}                 Show version`,
+    `${bold('-h')}, ${bold('--help')}                    Show this help`,
+  ]);
   console.log();
 
   console.log(`  ${dim('Examples:')}`);

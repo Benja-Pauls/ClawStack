@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { cloneRepo, checkGit } from '../utils/github.js';
-import { info, success, warn, error, spinner, bold, dim, green, yellow, cyan, divider, printBox, printPrompt, printHeader } from '../utils/ui.js';
+import { info, success, warn, error, spinner, bold, dim, green, yellow, cyan, divider, printBox, printPrompt, printHeader, printSnakeList } from '../utils/ui.js';
 
 const CLEANUP_PATHS = [
   'cli',
@@ -88,17 +88,19 @@ export async function stackNew(name) {
   }));
 
   let missing = [];
+  const prereqLines = [];
   for (const r of results) {
     if (!r.found) {
-      console.log(`    ${dim('○')} ${dim(r.label)} ${dim(`— install: ${r.url}`)}`);
+      prereqLines.push(`${dim('○')} ${dim(r.label)} ${dim(`— install: ${r.url}`)}`);
       missing.push(r.label);
     } else if (r.versionOk === false) {
-      console.log(`    ${yellow('△')} ${r.label} ${dim(`— found ${r.version}, need newer version`)}`);
+      prereqLines.push(`${yellow('△')} ${r.label} ${dim(`— found ${r.version}, need newer version`)}`);
       missing.push(r.label);
     } else {
-      console.log(`    ${green('✓')} ${r.label}`);
+      prereqLines.push(`${green('✓')} ${r.label}`);
     }
   }
+  printSnakeList(prereqLines);
   console.log();
 
   if (missing.length > 0) {
@@ -154,12 +156,14 @@ export async function stackNew(name) {
   console.log();
 
   console.log(`  ${dim('Your project includes:')}`);
-  console.log(`    ${green('✓')} FastAPI backend ${dim('(async SQLAlchemy, JWT auth, ownership)')}`);
-  console.log(`    ${green('✓')} React frontend ${dim('(TypeScript, Vite, shadcn/ui)')}`);
-  console.log(`    ${green('✓')} PostgreSQL + Redis ${dim('(Docker Compose)')}`);
-  console.log(`    ${green('✓')} Terraform infrastructure ${dim('(AWS App Runner, RDS, ECR)')}`);
-  console.log(`    ${green('✓')} 10 agent skills ${dim('(.skills/)')}`);
-  console.log(`    ${green('✓')} Persistent agent configs ${dim('(.openclaw/)')}`);
+  printSnakeList([
+    `${green('✓')} FastAPI backend ${dim('(async SQLAlchemy, JWT auth, ownership)')}`,
+    `${green('✓')} React frontend ${dim('(TypeScript, Vite, shadcn/ui)')}`,
+    `${green('✓')} PostgreSQL + Redis ${dim('(Docker Compose)')}`,
+    `${green('✓')} Terraform infrastructure ${dim('(AWS App Runner, RDS, ECR)')}`,
+    `${green('✓')} 10 agent skills ${dim('(.skills/)')}`,
+    `${green('✓')} Persistent agent configs ${dim('(.openclaw/)')}`,
+  ]);
   console.log();
 
   printBox('Get started', [

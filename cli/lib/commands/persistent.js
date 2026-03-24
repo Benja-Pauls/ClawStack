@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { execFile, spawn } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
-import { info, success, warn, error, bold, dim, green, cyan, yellow, red, divider, printBox, printHeader, spinner } from '../utils/ui.js';
+import { info, success, warn, error, bold, dim, green, cyan, yellow, red, divider, printBox, printHeader, spinner, printSnakeList, select, stripAnsi } from '../utils/ui.js';
 import {
   parseAgentMd,
   discoverAgents,
@@ -268,24 +268,26 @@ function printPreflightStatus(hasOpenClaw, available) {
   divider('Runtime');
   console.log();
 
+  const runtimeLines = [];
   if (hasOpenClaw) {
-    console.log(`    ${green('✓')} OpenClaw ${dim('— persistent agent runtime')}`);
+    runtimeLines.push(`${green('✓')} OpenClaw ${dim('— persistent agent runtime')}`);
   } else {
-    console.log(`    ${red('✗')} OpenClaw ${dim('— not installed')}`);
+    runtimeLines.push(`${red('✗')} OpenClaw ${dim('— not installed')}`);
   }
 
   if (available.ollamaRunning) {
-    console.log(`    ${green('✓')} Ollama  ${dim(`— running, ${available.local.length} model(s) installed`)}`);
+    runtimeLines.push(`${green('✓')} Ollama  ${dim(`— running, ${available.local.length} model(s) installed`)}`);
   } else if (available.ollamaInstalled) {
-    console.log(`    ${yellow('△')} Ollama  ${dim('— installed but not running')}`);
+    runtimeLines.push(`${yellow('△')} Ollama  ${dim('— installed but not running')}`);
   } else {
-    console.log(`    ${yellow('○')} Ollama  ${dim('— not installed (optional, for free local models)')}`);
+    runtimeLines.push(`${yellow('○')} Ollama  ${dim('— not installed (optional, for free local models)')}`);
   }
 
   if (available.hasApiKey) {
-    console.log(`    ${green('✓')} API key ${dim('— configured for cloud models')}`);
+    runtimeLines.push(`${green('✓')} API key ${dim('— configured for cloud models')}`);
   }
 
+  printSnakeList(runtimeLines);
   console.log();
 
   const issues = [];
@@ -449,67 +451,68 @@ function ollamaPull(modelName) {
 
 async function pickModel(rl, agentName, currentModel, available) {
   const choices = [];
+  const items = [];
 
   // Section 1: Installed local models
   if (available.local.length > 0) {
-    console.log(`    ${dim('── Installed')} ${green('ready')} ${dim('────────────────────')}`);
+    items.push({ separator: `${dim('── Installed')} ${green('ready')} ${dim('────────────────────')}` });
     for (const m of available.local) {
       const isCurrent = m.id === currentModel;
-      const idx = choices.length;
+      const choiceIdx = choices.length;
       choices.push({ ...m, action: 'use' });
-      const marker = isCurrent ? green('>') : ' ';
-      const num = dim(`${idx + 1}.`);
-      const label = isCurrent ? bold(m.name) : m.name;
       const params = m.params ? dim(` ${m.params}`) : '';
       const quant = m.quant ? dim(` ${m.quant}`) : '';
       const size = m.size ? dim(` (${m.size})`) : '';
-      const tag = isCurrent ? green(' ← current') : '';
-      console.log(`  ${marker} ${num} ${label}${params}${quant}${size}${tag}`);
+      items.push({
+        label: `${m.name}${params}${quant}${size}`,
+        value: choiceIdx,
+        hint: isCurrent ? green(' ← current') : '',
+      });
     }
   }
 
-  // Section 2: Downloadable models — always shown
+  // Section 2: Downloadable models
   if (available.recommended.length > 0) {
     const liveTag = available.recommendedLive ? dim('live from ollama.com') : dim('cached list');
     const needsOllama = !available.ollamaInstalled ? dim(' · requires Ollama') : '';
-    console.log(`    ${dim('── Download')} ${cyan('free')} ${dim('(')}${liveTag}${needsOllama}${dim(') ──')}`);
+    items.push({ separator: `${dim('── Download')} ${cyan('free')} ${dim('(')}${liveTag}${needsOllama}${dim(') ──')}` });
     const toShow = available.recommended.slice(0, 8);
     for (const r of toShow) {
-      const idx = choices.length;
       const isCurrent = `ollama/${r.name}` === currentModel;
+      const choiceIdx = choices.length;
       choices.push({
         id: `ollama/${r.name}`, name: r.name, params: r.params,
         size: r.size, description: r.description,
         tier: 'downloadable', action: 'download',
       });
-      const marker = isCurrent ? green('>') : ' ';
-      const num = dim(`${idx + 1}.`);
-      const label = isCurrent ? bold(r.name) : r.name;
       const params = r.params ? dim(` ${r.params}`) : '';
       const size = r.size ? dim(` (${r.size})`) : '';
       const desc = r.description ? dim(` — ${r.description}`) : '';
-      const tag = isCurrent ? green(' ← current') : '';
-      console.log(`  ${marker} ${num} ${label}${params}${size}${desc}${tag}`);
+      items.push({
+        label: `${r.name}${params}${size}${desc}`,
+        value: choiceIdx,
+        hint: isCurrent ? green(' ← current') : '',
+      });
     }
     if (available.recommended.length > toShow.length) {
-      console.log(`    ${dim(`... and ${available.recommended.length - toShow.length} more at`)} ${cyan('ollama.com/library')}`);
+      items.push({ separator: `${dim(`    ... and ${available.recommended.length - toShow.length} more at`)} ${cyan('ollama.com/library')}` });
     }
   }
 
   // Section 3: Cloud models
   if (available.cloud.length > 0) {
     const apiNote = available.hasApiKey ? green('key ✓') : yellow('needs API key');
-    console.log(`    ${dim('── Cloud')} ${apiNote} ${dim('─────────────────────')}`);
+    items.push({ separator: `${dim('── Cloud')} ${apiNote} ${dim('─────────────────────')}` });
     for (const m of available.cloud) {
       const isCurrent = m.id === currentModel;
-      const idx = choices.length;
+      const choiceIdx = choices.length;
       choices.push({ ...m, action: 'use' });
-      const marker = isCurrent ? green('>') : ' ';
-      const num = dim(`${idx + 1}.`);
-      const label = isCurrent ? bold(m.name) : m.name;
       const provider = m.provider ? dim(` (${m.provider})`) : '';
-      const tag = isCurrent ? green(' ← current') : '';
-      console.log(`  ${marker} ${num} ${label}${provider}${tag}`);
+      items.push({
+        label: `${m.name}${provider}`,
+        value: choiceIdx,
+        hint: isCurrent ? green(' ← current') : '',
+      });
     }
   }
 
@@ -518,20 +521,26 @@ async function pickModel(rl, agentName, currentModel, available) {
     return currentModel;
   }
 
-  // If current model isn't in any list, append at end (never unshift — breaks numbering)
+  // Append current model if not already listed
   if (!choices.some(c => c.id === currentModel)) {
-    const idx = choices.length;
+    const choiceIdx = choices.length;
     choices.push({ id: currentModel, name: modelShortName(currentModel), tier: 'custom', action: 'use' });
-    console.log(`    ${dim('── Current ─────────────────────────')}`);
-    console.log(`  ${green('>')} ${dim(`${idx + 1}.`)} ${bold(modelShortName(currentModel))} ${dim('(not installed)')} ${green('← current')}`);
+    items.push({ separator: `${dim('── Current ─────────────────────────')}` });
+    items.push({
+      label: `${modelShortName(currentModel)} ${dim('(not installed)')}`,
+      value: choiceIdx,
+      hint: green(' ← current'),
+    });
   }
 
-  const currentIdx = choices.findIndex(c => c.id === currentModel);
-  const defaultNum = currentIdx >= 0 ? currentIdx + 1 : 1;
+  const currentChoiceIdx = choices.findIndex(c => c.id === currentModel);
 
-  const answer = await rl.question(`    ${dim(`Enter 1-${choices.length}`)} ${dim(`[${defaultNum}]`)}: `);
-  const idx = parseInt(answer.trim(), 10) - 1;
-  const selected = (idx >= 0 && idx < choices.length) ? choices[idx] : choices[Math.max(0, currentIdx)];
+  const selectedIdx = await select(items, {
+    defaultValue: Math.max(0, currentChoiceIdx),
+    rl,
+  });
+
+  const selected = choices[selectedIdx];
 
   // Handle downloadable model selection — install Ollama + pull model automatically
   if (selected.action === 'download') {
@@ -552,7 +561,6 @@ async function pickModel(rl, agentName, currentModel, available) {
       return selected.id;
     }
 
-    // Ollama is ready — download the model
     rl.pause();
     const pulled = await ollamaPull(selected.name);
     rl.resume();
@@ -725,16 +733,16 @@ async function stopAllAgents(projectDir, config, parsed) {
 
 // ─── Agent Status ───────────────────────────────────────────
 
-function printAgentLine(name, agentMd, config) {
+function formatAgentLine(name, agentMd, config) {
   const model = getEffectiveModel(name, agentMd.meta, config);
   const schedule = (agentMd.meta.schedule || []).map(s => s.every).join(', ');
   const modelStr = modelShortName(model);
   const enabled = isAgentEnabled(name, config);
 
   if (enabled) {
-    console.log(`    ${green('●')} ${bold(name)}  ${dim(modelStr)}  ${dim(schedule)}  ${green('enabled')}`);
+    return `${green('●')} ${bold(name)}  ${dim(modelStr)}  ${dim(schedule)}  ${green('enabled')}`;
   } else {
-    console.log(`    ${dim('○')} ${dim(name)}  ${dim(modelStr)}  ${dim(schedule)}  ${dim('disabled')}`);
+    return `${dim('○')} ${dim(name)}  ${dim(modelStr)}  ${dim(schedule)}  ${dim('disabled')}`;
   }
 }
 
@@ -745,9 +753,7 @@ function printStatusDashboard(config, parsed) {
 
   divider('Agents');
   console.log();
-  for (const { name, agentMd } of parsed) {
-    printAgentLine(name, agentMd, config);
-  }
+  printSnakeList(parsed.map(({ name, agentMd }) => formatAgentLine(name, agentMd, config)));
   console.log();
 }
 
@@ -758,12 +764,12 @@ async function runModels(available) {
   console.log();
 
   if (available.local.length > 0) {
-    for (const m of available.local) {
+    printSnakeList(available.local.map(m => {
       const params = m.params ? dim(` ${m.params}`) : '';
       const quant = m.quant ? dim(` ${m.quant}`) : '';
       const size = m.size ? dim(` (${m.size})`) : '';
-      console.log(`    ${green('●')} ${bold(m.name)}${params}${quant}${size}`);
-    }
+      return `${green('●')} ${bold(m.name)}${params}${quant}${size}`;
+    }));
   } else {
     console.log(`    ${dim('No local models installed.')}`);
   }
@@ -772,9 +778,9 @@ async function runModels(available) {
     console.log();
     const apiNote = available.hasApiKey ? green('key ✓') : yellow('needs API key');
     console.log(`  ${dim('Cloud models')} ${apiNote}`);
-    for (const m of available.cloud) {
-      console.log(`    ${dim('●')} ${m.name} ${dim(`(${m.provider})`)}`);
-    }
+    printSnakeList(available.cloud.map(m =>
+      `${dim('●')} ${m.name} ${dim(`(${m.provider})`)}`
+    ));
   }
 
   console.log();
@@ -788,9 +794,9 @@ async function runModels(available) {
       warn('Could not reach ollama.com — showing cached recommendations');
     }
     console.log();
-    for (const r of available.recommended) {
-      console.log(`    ${dim('$')} ${bold(`ollama pull ${r.name}`)}  ${dim(`${r.params} — ${r.description}`)}`);
-    }
+    printSnakeList(available.recommended.map(r =>
+      `${dim('$')} ${bold(`ollama pull ${r.name}`)}  ${dim(`${r.params} — ${r.description}`)}`
+    ));
     console.log();
   }
 

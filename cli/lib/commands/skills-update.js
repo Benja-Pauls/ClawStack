@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { downloadFile } from '../utils/github.js';
 import { safeWrite } from '../utils/fs-helpers.js';
-import { info, success, warn, error, spinner, bold, dim, green, cyan, printHeader, fileStatus } from '../utils/ui.js';
+import { info, success, warn, error, spinner, bold, dim, green, cyan, printHeader, fileStatus, printSnakeList } from '../utils/ui.js';
 
 const MANIFEST = [
   '.skills/auth/SKILL.md',
@@ -77,7 +77,7 @@ export async function skillsUpdate({ force = false, all = false } = {}) {
     spin.stop();
   }
 
-  for (const log of logs) console.log(log);
+  printSnakeList(logs);
   console.log();
 
   // Summary line
