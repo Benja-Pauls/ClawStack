@@ -1,7 +1,7 @@
 {
   "name": "serpentstack",
-  "version": "0.2.31",
-  "description": "CLI for SerpentStack — AI-driven development standards with project-specific skills and persistent agents",
+  "version": "0.3.0",
+  "description": "Find the best agent skills. Run persistent agents locally. Ship faster.",
   "type": "module",
   "bin": {
     "serpentstack": "bin/serpentstack.js"

@@ -27,7 +27,7 @@ function parseArgs(args) {
 }
 
 // Known commands for fuzzy matching on typos
-const KNOWN_COMMANDS = ['stack', 'skills', 'persistent'];
+const KNOWN_COMMANDS = ['stack', 'skills', 'persistent', 'search', 'add', 'discover', 'mcp'];
 
 function suggestCommand(input) {
   const lower = input.toLowerCase();
@@ -57,7 +57,37 @@ function editDistance(a, b) {
 
 function showHelp() {
   printHeader();
-  console.log(`  ${dim(green('╰─'))} ${dim('Deployable fullstack templates + AI agent skills for any project')}`);
+  console.log(`  ${dim(green('╰─'))} ${dim('Find the best agent skills. Run persistent agents locally. Ship faster.')}`);
+  console.log();
+
+  divider('Skill discovery');
+  console.log();
+  printSnakeList([
+    `${cyan('search')} ${dim('<query>')}               Search all skill registries`,
+    `${cyan('discover')}                      Analyze your project, recommend skills`,
+    `${cyan('add')} ${dim('<source>')}                  Install a skill from any registry or repo`,
+  ]);
+  console.log();
+
+  divider('Base skills');
+  console.log();
+  printSnakeList([
+    `${cyan('skills')}                        Download all base skills + agent configs`,
+    `${cyan('skills update')}                 Update base skills to latest versions`,
+  ]);
+  console.log();
+
+  divider('Persistent agents');
+  console.log();
+  printSnakeList([
+    `${cyan('persistent')}                    Status dashboard (first run = full setup)`,
+    `${cyan('persistent')} ${dim('--start')}           Launch enabled agents`,
+    `${cyan('persistent')} ${dim('--stop')}            Stop all running agents`,
+    `${cyan('persistent')} ${dim('--agents')}          Change agent models, enable/disable`,
+    `${cyan('persistent')} ${dim('--models')}          List installed & recommended models`,
+    `${cyan('persistent')} ${dim('--configure')}       Edit project settings`,
+    `${cyan('persistent')} ${dim('--watch')}           Live agent activity feed`,
+  ]);
   console.log();
 
   divider('New projects');
@@ -65,21 +95,6 @@ function showHelp() {
   printSnakeList([
     `${cyan('stack new')} ${dim('<name>')}             Scaffold a full project from the template`,
     `${cyan('stack update')}                  Update template-level files to latest`,
-  ]);
-  console.log();
-
-  divider('Any project');
-  console.log();
-  printSnakeList([
-    `${cyan('skills')}                        Download all skills + persistent agent configs`,
-    `${cyan('skills update')}                 Update base skills to latest versions`,
-    `${cyan('persistent')}                    Status dashboard (first run = full setup)`,
-    `${cyan('persistent')} ${dim('--configure')}       Edit project settings`,
-    `${cyan('persistent')} ${dim('--agents')}          Change agent models, enable/disable`,
-    `${cyan('persistent')} ${dim('--models')}          List installed & recommended models`,
-    `${cyan('persistent')} ${dim('--start')}           Launch enabled agents`,
-    `${cyan('persistent')} ${dim('--watch')}           Live agent activity feed`,
-    `${cyan('persistent')} ${dim('--stop')}            Stop all running agents`,
   ]);
   console.log();
 
@@ -94,9 +109,9 @@ function showHelp() {
   console.log();
 
   console.log(`  ${dim('Examples:')}`);
-  console.log(`    ${dim('$')} serpentstack stack new my-saas-app`);
+  console.log(`    ${dim('$')} serpentstack search "react testing"`);
   console.log(`    ${dim('$')} serpentstack skills`);
-  console.log(`    ${dim('$')} serpentstack persistent`);
+  console.log(`    ${dim('$')} serpentstack persistent --start`);
   console.log();
   console.log(`  ${dim('Docs:')} ${cyan('https://github.com/Benja-Pauls/SerpentStack')}`);
   console.log();
@@ -145,6 +160,24 @@ async function main() {
       console.log(`\n  Available: ${bold('skills')}, ${bold('skills update')}\n`);
       process.exit(1);
     }
+  } else if (noun === 'search') {
+    const query = [verb, ...rest].filter(Boolean).join(' ');
+    const { search } = await import('../lib/commands/search.js');
+    await search(query);
+  } else if (noun === 'add') {
+    if (!verb) {
+      error('Missing skill source.');
+      console.log(`\n  Usage: ${bold('serpentstack add <owner/repo>')} or ${bold('serpentstack add <url>')}\n`);
+      process.exit(1);
+    }
+    error('serpentstack add is coming soon.');
+    console.log(`\n  For now, install skills manually:\n    ${dim('$')} ${bold(`npx skills add ${verb}`)}\n`);
+  } else if (noun === 'discover') {
+    error('serpentstack discover is coming soon.');
+    console.log(`\n  For now, search by your stack:\n    ${dim('$')} ${bold('serpentstack search "your-framework"')}\n`);
+  } else if (noun === 'mcp') {
+    error('serpentstack mcp is coming soon.');
+    console.log(`\n  Track progress: ${bold('https://github.com/Benja-Pauls/SerpentStack/issues')}\n`);
   } else if (noun === 'persistent') {
     const { persistent } = await import('../lib/commands/persistent.js');
     await persistent({
