@@ -170,8 +170,8 @@ async function main() {
       console.log(`\n  Usage: ${bold('serpentstack add <owner/repo>')} or ${bold('serpentstack add <url>')}\n`);
       process.exit(1);
     }
-    error('serpentstack add is coming soon.');
-    console.log(`\n  For now, install skills manually:\n    ${dim('$')} ${bold(`npx skills add ${verb}`)}\n`);
+    const { add } = await import('../lib/commands/add.js');
+    await add([verb, ...rest].join('/'), { force: !!flags.force });
   } else if (noun === 'discover') {
     error('serpentstack discover is coming soon.');
     console.log(`\n  For now, search by your stack:\n    ${dim('$')} ${bold('serpentstack search "your-framework"')}\n`);

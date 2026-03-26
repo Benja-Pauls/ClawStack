@@ -1,6 +1,6 @@
 {
   "name": "serpentstack",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "description": "Find the best agent skills. Run persistent agents locally. Ship faster.",
   "type": "module",
   "bin": {
