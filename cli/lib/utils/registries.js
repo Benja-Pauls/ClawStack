@@ -39,19 +39,22 @@ async function fetchText(url, opts = {}) {
  *   - All terms matched: 10 bonus points
  */
 function scoreMatch(name, description, terms) {
-  const normName = name.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
-  const normDesc = (description || '').toLowerCase();
-  const fullQuery = terms.join(' ');
+  // Normalize everything the same way: lowercase, non-alphanumeric → spaces
+  const norm = s => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const normName = norm(name);
+  const normDesc = norm(description || '');
+  const normTerms = terms.map(t => norm(t));
+  const fullQuery = normTerms.join(' ');
 
   let score = 0;
   let termsMatched = 0;
 
   // Exact name match (the query IS the skill name)
-  if (normName === fullQuery || normName.replace(/\s+/g, '-') === fullQuery) {
+  if (normName === fullQuery || normName.endsWith(fullQuery)) {
     score += 50;
   }
 
-  for (const term of terms) {
+  for (const term of normTerms) {
     if (normName.includes(term)) {
       score += 20;
       termsMatched++;
