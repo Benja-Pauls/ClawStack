@@ -1,8 +1,8 @@
 /**
  * Registry adapters for cross-registry skill search.
  *
- * Each adapter exports a `search(query, opts)` function returning:
- *   { name, source, description, url, install, stars?, author? }[]
+ * Each adapter returns: { name, source, description, url, install, stars?, author?, _score }[]
+ * _score is internal relevance (0-100) used for cross-source ranking.
  */
 
 const TIMEOUT = 8000;
@@ -29,31 +29,173 @@ async function fetchText(url, opts = {}) {
   return resp.text();
 }
 
-// ─── GitHub Repository Search ──────────────────────────────
-// Free, no auth required. Searches repos with SKILL.md files.
+// ─── Scoring helpers ───────────────────────────────────────
 
-export async function searchGitHub(query, { limit = 10 } = {}) {
+/**
+ * Score a skill against search terms. Returns 0-100.
+ *   - Exact name match: 50 points
+ *   - Term in name: 20 points per term
+ *   - Term in description: 5 points per term
+ *   - All terms matched: 10 bonus points
+ */
+function scoreMatch(name, description, terms) {
+  const normName = name.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
+  const normDesc = (description || '').toLowerCase();
+  const fullQuery = terms.join(' ');
+
+  let score = 0;
+  let termsMatched = 0;
+
+  // Exact name match (the query IS the skill name)
+  if (normName === fullQuery || normName.replace(/\s+/g, '-') === fullQuery) {
+    score += 50;
+  }
+
+  for (const term of terms) {
+    if (normName.includes(term)) {
+      score += 20;
+      termsMatched++;
+    } else if (normDesc.includes(term)) {
+      score += 5;
+      termsMatched++;
+    }
+  }
+
+  // Bonus if all terms matched somewhere
+  if (termsMatched === terms.length && terms.length > 1) {
+    score += 10;
+  }
+
+  return score;
+}
+
+// ─── Source weight multipliers ─────────────────────────────
+// Curated sources are more trustworthy than raw GitHub search.
+
+const SOURCE_WEIGHT = {
+  'anthropic': 1.5,
+  'skills.sh': 1.3,
+  'awesome-agent-skills': 1.2,
+  'github': 1.0,
+};
+
+// ─── GitHub Repository Search ──────────────────────────────
+// Runs two parallel strategies:
+//   1. Topic-based search (repos tagged agent-skill or claude-skill)
+//   2. Keyword search with aggressive filtering
+
+async function searchGitHubTopics(query, limit) {
   const results = [];
 
-  // Search repos that are actually skill repos (not just any repo mentioning the query)
-  const q = encodeURIComponent(`${query} agent skill SKILL.md in:readme,description`);
-  const data = await fetchJSON(
-    `https://api.github.com/search/repositories?q=${q}&sort=stars&per_page=${Math.round(limit * 1.5)}`,
-    { headers: { 'Accept': 'application/vnd.github+json' } }
+  // Search repos tagged with skill-related topics
+  const topicQueries = [
+    `topic:agent-skill ${query}`,
+    `topic:claude-skill ${query}`,
+  ];
+
+  const fetches = topicQueries.map(q =>
+    fetchJSON(
+      `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&per_page=${limit}`,
+      { headers: { 'Accept': 'application/vnd.github+json' } }
+    )
   );
 
-  if (!data?.items) return results;
+  const responses = await Promise.allSettled(fetches);
+  const seen = new Set();
 
-  for (const repo of data.items) {
-    // Skip meta-repos, guides, and toolkits — we want actual skill repos
-    const name = repo.full_name.toLowerCase();
-    const desc = (repo.description || '').toLowerCase();
-    if (name.includes('awesome-') && repo.stargazers_count > 5000) continue;
-    if (name.includes('everything-claude') || name.includes('serpentstack')) continue;
-    if (name.includes('-guide') || name.includes('-toolkit') || name.includes('everything-you-need')) continue;
-    // Skip repos that are clearly not skills (guides, docs, collections)
-    if (desc.includes('guide') && desc.includes('ultimate')) continue;
-    if (desc.includes('all-in-one guide') || desc.includes('comprehensive toolkit')) continue;
+  for (const resp of responses) {
+    if (resp.status !== 'fulfilled' || !resp.value?.items) continue;
+    for (const repo of resp.value.items) {
+      if (seen.has(repo.full_name)) continue;
+      seen.add(repo.full_name);
+      results.push(repo);
+    }
+  }
+
+  return results;
+}
+
+async function searchGitHubKeyword(query, limit) {
+  // More targeted: search for repos that mention SKILL.md AND the query
+  const q = encodeURIComponent(`${query} SKILL.md in:readme,description`);
+  const data = await fetchJSON(
+    `https://api.github.com/search/repositories?q=${q}&sort=stars&per_page=${Math.round(limit * 2)}`,
+    { headers: { 'Accept': 'application/vnd.github+json' } }
+  );
+  return data?.items || [];
+}
+
+// Repos that are clearly not skills — frameworks, meta-repos, aggregators
+const GITHUB_BLOCKLIST = [
+  'openclaw', 'everything-claude', 'serpentstack', 'awesome-',
+  'deer-flow', 'nanobot', 'zeroclaw', 'picoclaw', 'nanoclaw',
+  'openfang', 'browser-use', 'superpowers',
+];
+
+function isLikelySkillRepo(repo) {
+  const name = repo.full_name.toLowerCase();
+  const desc = (repo.description || '').toLowerCase();
+
+  // Block known non-skill repos
+  for (const blocked of GITHUB_BLOCKLIST) {
+    if (name.includes(blocked)) return false;
+  }
+
+  // Repos with 50k+ stars are almost certainly frameworks, not skills
+  if (repo.stargazers_count > 50000) return false;
+
+  // Skip meta-content
+  if (name.includes('-guide') || name.includes('-toolkit') || name.includes('everything-you-need')) return false;
+  if (desc.includes('ultimate guide') || desc.includes('all-in-one guide') || desc.includes('comprehensive toolkit')) return false;
+  if (desc.includes('curated list') || desc.includes('collection of')) return false;
+
+  // Positive signals: repos that look like actual skills
+  const hasSkillSignal =
+    name.includes('skill') ||
+    name.includes('agent-') ||
+    desc.includes('skill') ||
+    desc.includes('SKILL.md') ||
+    desc.includes('claude code') ||
+    (repo.topics || []).some(t => t.includes('skill') || t.includes('claude'));
+
+  return hasSkillSignal || repo.stargazers_count < 5000;
+}
+
+export async function searchGitHub(query, { limit = 10 } = {}) {
+  const terms = query.toLowerCase().split(/\s+/);
+
+  // Run topic search and keyword search in parallel
+  const [topicRepos, keywordRepos] = await Promise.allSettled([
+    searchGitHubTopics(query, limit),
+    searchGitHubKeyword(query, limit),
+  ]);
+
+  // Merge results, topic repos first (higher quality)
+  const topicSet = new Set();
+  const merged = [];
+
+  if (topicRepos.status === 'fulfilled') {
+    for (const repo of topicRepos.value) {
+      topicSet.add(repo.full_name);
+      merged.push({ ...repo, _fromTopic: true });
+    }
+  }
+
+  if (keywordRepos.status === 'fulfilled') {
+    for (const repo of keywordRepos.value) {
+      if (!topicSet.has(repo.full_name)) {
+        merged.push({ ...repo, _fromTopic: false });
+      }
+    }
+  }
+
+  const results = [];
+  for (const repo of merged) {
+    if (!isLikelySkillRepo(repo)) continue;
+
+    const relevance = scoreMatch(repo.name, repo.description, terms);
+    // Topic repos get a bonus
+    const topicBonus = repo._fromTopic ? 15 : 0;
 
     results.push({
       name: repo.name,
@@ -63,10 +205,12 @@ export async function searchGitHub(query, { limit = 10 } = {}) {
       url: repo.html_url,
       install: `serpentstack add ${repo.full_name}`,
       stars: repo.stargazers_count,
+      _score: relevance + topicBonus,
     });
   }
 
-  return results;
+  results.sort((a, b) => b._score - a._score);
+  return results.slice(0, limit);
 }
 
 // ─── awesome-agent-skills (VoltAgent) ──────────────────────
@@ -112,17 +256,13 @@ export async function searchAwesome(query, { limit = 15 } = {}) {
   const scored = [];
 
   for (const entry of entries) {
-    const haystack = `${entry.name} ${entry.description}`.toLowerCase();
-    let score = 0;
-    for (const term of terms) {
-      if (haystack.includes(term)) score++;
-    }
-    if (score > 0) {
-      scored.push({ ...entry, score });
+    const relevance = scoreMatch(entry.name, entry.description, terms);
+    if (relevance > 0) {
+      scored.push({ ...entry, _score: relevance });
     }
   }
 
-  scored.sort((a, b) => b.score - a.score);
+  scored.sort((a, b) => b._score - a._score);
 
   return scored.slice(0, limit).map(e => ({
     name: e.name,
@@ -132,12 +272,13 @@ export async function searchAwesome(query, { limit = 15 } = {}) {
     url: e.url,
     install: `serpentstack add ${e.name}`,
     stars: null,
+    _score: e._score,
   }));
 }
 
 // ─── skills.sh (Vercel) ───────────────────────────────────
-// No public API, but we can hit their search page.
-// Falls back to curated popular skills if scraping fails.
+// No public search API (SPA behind Cloudflare).
+// Curated list of known skills from the registry.
 
 const SKILLS_SH_POPULAR = [
   { name: 'find-skills', author: 'vercel-labs', description: 'Find and install Agent Skills from the community', url: 'https://skills.sh/vercel-labs/skills/find-skills' },
@@ -160,6 +301,16 @@ const SKILLS_SH_POPULAR = [
   { name: 'docker', author: 'nichochar', description: 'Build and manage Docker containers and Compose configs', url: 'https://skills.sh/nichochar/docker-agent-skill/docker' },
   { name: 'vitest', author: 'nichochar', description: 'Write and run tests with Vitest testing framework', url: 'https://skills.sh/nichochar/vitest-agent-skill/vitest' },
   { name: 'drizzle-orm', author: 'nichochar', description: 'Build type-safe database queries with Drizzle ORM', url: 'https://skills.sh/nichochar/drizzle-agent-skill/drizzle-orm' },
+  { name: 'playwright', author: 'nichochar', description: 'End-to-end testing with Playwright for web applications', url: 'https://skills.sh/nichochar/playwright-agent-skill/playwright' },
+  { name: 'jest', author: 'nichochar', description: 'Unit and integration testing with Jest framework', url: 'https://skills.sh/nichochar/jest-agent-skill/jest' },
+  { name: 'mongodb', author: 'mongodb', description: 'Build applications with MongoDB Atlas and drivers', url: 'https://skills.sh/mongodb/mongodb-agent-skills/mongodb' },
+  { name: 'convex', author: 'get-convex', description: 'Build reactive backends with Convex database and functions', url: 'https://skills.sh/get-convex/convex-agent-skill/convex' },
+  { name: 'resend', author: 'resend', description: 'Send transactional emails with Resend API', url: 'https://skills.sh/resend/agent-skills/resend' },
+  { name: 'linear', author: 'nichochar', description: 'Project management and issue tracking with Linear API', url: 'https://skills.sh/nichochar/linear-agent-skill/linear' },
+  { name: 'clerk', author: 'clerk', description: 'Authentication and user management with Clerk', url: 'https://skills.sh/clerk/agent-skills/clerk' },
+  { name: 'vercel', author: 'vercel-labs', description: 'Deploy and manage applications on Vercel platform', url: 'https://skills.sh/vercel-labs/skills/vercel' },
+  { name: 'aws-cdk', author: 'nichochar', description: 'Define cloud infrastructure with AWS CDK constructs', url: 'https://skills.sh/nichochar/aws-cdk-agent-skill/aws-cdk' },
+  { name: 'github-actions', author: 'nichochar', description: 'Build CI/CD workflows with GitHub Actions', url: 'https://skills.sh/nichochar/github-actions-agent-skill/github-actions' },
 ];
 
 export async function searchSkillsSh(query, { limit = 10 } = {}) {
@@ -167,53 +318,102 @@ export async function searchSkillsSh(query, { limit = 10 } = {}) {
   const results = [];
 
   for (const skill of SKILLS_SH_POPULAR) {
-    const haystack = `${skill.name} ${skill.author} ${skill.description}`.toLowerCase();
-    let score = 0;
-    for (const term of terms) {
-      if (haystack.includes(term)) score++;
-    }
-    if (score > 0) {
+    const relevance = scoreMatch(skill.name, `${skill.author} ${skill.description}`, terms);
+    if (relevance > 0) {
       results.push({
         ...skill,
         source: 'skills.sh',
         install: `npx skills add ${skill.author}/${skill.name}`,
         stars: null,
-        score,
+        _score: relevance,
       });
     }
   }
 
-  results.sort((a, b) => b.score - a.score);
-  return results.slice(0, limit).map(({ score, ...r }) => r);
+  results.sort((a, b) => b._score - a._score);
+  return results.slice(0, limit);
 }
 
 // ─── Anthropic Official Skills ─────────────────────────────
-// Curated list from anthropics/skills repo.
+// Dynamically fetches the skill list from anthropics/skills repo tree.
+// Falls back to a hardcoded list if the API is unreachable.
 
-const ANTHROPIC_SKILLS = [
-  { name: 'frontend-design', description: 'Design beautiful, accessible frontends with semantic HTML and modern CSS' },
-  { name: 'create-mcp-server', description: 'Build custom MCP servers for extending agent capabilities' },
-  { name: 'tailwindcss', description: 'Build interfaces with Tailwind CSS utility classes' },
+const ANTHROPIC_SKILLS_FALLBACK = [
+  { name: 'algorithmic-art', description: 'Create algorithmic and generative art with code' },
+  { name: 'brand-guidelines', description: 'Apply and maintain brand identity guidelines' },
+  { name: 'canvas-design', description: 'Design interactive canvas-based visuals and layouts' },
+  { name: 'claude-api', description: 'Build applications using the Claude API and SDKs' },
+  { name: 'doc-coauthoring', description: 'Collaboratively write and edit long-form documents' },
   { name: 'docx', description: 'Create, edit, and analyze Word documents' },
+  { name: 'frontend-design', description: 'Design beautiful, accessible frontends with semantic HTML and modern CSS' },
+  { name: 'internal-comms', description: 'Draft internal communications, memos, and announcements' },
+  { name: 'mcp-builder', description: 'Build custom MCP servers for extending agent capabilities' },
   { name: 'pdf', description: 'Read, create, merge, split, and manipulate PDF files' },
-  { name: 'xlsx', description: 'Read, create, and edit Excel spreadsheets' },
   { name: 'pptx', description: 'Create and edit PowerPoint presentations' },
-  { name: 'csv-analysis', description: 'Analyze and transform CSV data files' },
-  { name: 'data-analysis', description: 'Statistical analysis, visualization, and data exploration' },
-  { name: 'web-scraping', description: 'Extract data from websites using modern scraping techniques' },
+  { name: 'skill-creator', description: 'Create, test, and optimize new agent skills' },
+  { name: 'slack-gif-creator', description: 'Generate animated GIFs for Slack messages' },
+  { name: 'theme-factory', description: 'Generate and customize UI themes and color palettes' },
+  { name: 'web-artifacts-builder', description: 'Build interactive web artifacts and components' },
+  { name: 'webapp-testing', description: 'Test web applications with automated browser testing' },
+  { name: 'xlsx', description: 'Read, create, and edit Excel spreadsheets' },
 ];
 
+let _anthropicCache = null;
+let _anthropicFetchedAt = 0;
+const ANTHROPIC_TTL = 300_000; // 5 min cache
+
+async function loadAnthropicSkills() {
+  const now = Date.now();
+  if (_anthropicCache && now - _anthropicFetchedAt < ANTHROPIC_TTL) return _anthropicCache;
+
+  // Try fetching the repo tree to get live skill list
+  const tree = await fetchJSON(
+    'https://api.github.com/repos/anthropics/skills/git/trees/main',
+    { headers: { 'Accept': 'application/vnd.github+json' } }
+  );
+
+  if (tree?.tree) {
+    const skillsDir = tree.tree.find(t => t.path === 'skills' && t.type === 'tree');
+    if (skillsDir) {
+      const subtree = await fetchJSON(skillsDir.url, {
+        headers: { 'Accept': 'application/vnd.github+json' },
+      });
+
+      if (subtree?.tree) {
+        const skills = subtree.tree
+          .filter(t => t.type === 'tree')
+          .map(t => {
+            // Try to find this skill in fallback for description
+            const fallback = ANTHROPIC_SKILLS_FALLBACK.find(f => f.name === t.path);
+            return {
+              name: t.path,
+              description: fallback?.description || `Anthropic official ${t.path.replace(/-/g, ' ')} skill`,
+            };
+          });
+
+        if (skills.length > 0) {
+          _anthropicCache = skills;
+          _anthropicFetchedAt = now;
+          return skills;
+        }
+      }
+    }
+  }
+
+  // Fallback to hardcoded list
+  _anthropicCache = ANTHROPIC_SKILLS_FALLBACK;
+  _anthropicFetchedAt = now;
+  return ANTHROPIC_SKILLS_FALLBACK;
+}
+
 export async function searchAnthropic(query, { limit = 10 } = {}) {
+  const skills = await loadAnthropicSkills();
   const terms = query.toLowerCase().split(/\s+/);
   const results = [];
 
-  for (const skill of ANTHROPIC_SKILLS) {
-    const haystack = `${skill.name} ${skill.description}`.toLowerCase();
-    let score = 0;
-    for (const term of terms) {
-      if (haystack.includes(term)) score++;
-    }
-    if (score > 0) {
+  for (const skill of skills) {
+    const relevance = scoreMatch(skill.name, skill.description, terms);
+    if (relevance > 0) {
       results.push({
         name: `anthropics/${skill.name}`,
         author: 'anthropics',
@@ -222,24 +422,25 @@ export async function searchAnthropic(query, { limit = 10 } = {}) {
         url: `https://github.com/anthropics/skills/tree/main/skills/${skill.name}`,
         install: `npx skills add anthropics/skills/${skill.name}`,
         stars: null,
-        score,
+        _score: relevance,
       });
     }
   }
 
-  results.sort((a, b) => b.score - a.score);
-  return results.slice(0, limit).map(({ score, ...r }) => r);
+  results.sort((a, b) => b._score - a._score);
+  return results.slice(0, limit);
 }
 
 // ─── Unified Search ────────────────────────────────────────
 
 /**
  * Search all registries in parallel and return deduplicated, ranked results.
+ * Results are sorted by weighted relevance score across all sources.
  */
 export async function searchAll(query, { limit = 20 } = {}) {
   const [awesome, github, skillsSh, anthropic] = await Promise.allSettled([
     searchAwesome(query, { limit: 15 }),
-    searchGitHub(query, { limit: 10 }),
+    searchGitHub(query, { limit: 12 }),
     searchSkillsSh(query, { limit: 10 }),
     searchAnthropic(query, { limit: 10 }),
   ]);
@@ -262,29 +463,47 @@ export async function searchAll(query, { limit = 20 } = {}) {
     }
   }
 
-  // Deduplicate by normalized name (strip org prefixes and special chars)
-  const seen = new Set();
+  // Deduplicate by normalized name, keeping the highest-weighted version
+  const seen = new Map(); // key → index in deduped
   const deduped = [];
+
   for (const item of all) {
-    // Normalize: "stripe/stripe-best-practices" and "stripe-best-practices" should match
     const baseName = item.name.includes('/') ? item.name.split('/').pop() : item.name;
     const key = baseName.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (seen.has(key)) continue;
-    seen.add(key);
-    deduped.push(item);
+
+    const weight = SOURCE_WEIGHT[item.source] || 1.0;
+    const weightedScore = (item._score || 0) * weight;
+
+    if (seen.has(key)) {
+      // Keep the one from the more trusted source (higher weighted score)
+      const existingIdx = seen.get(key);
+      if (weightedScore > deduped[existingIdx]._weightedScore) {
+        deduped[existingIdx] = { ...item, _weightedScore: weightedScore };
+      }
+    } else {
+      seen.set(key, deduped.length);
+      deduped.push({ ...item, _weightedScore: weightedScore });
+    }
   }
 
-  return { results: deduped.slice(0, limit), sources };
+  // Sort by weighted score descending
+  deduped.sort((a, b) => b._weightedScore - a._weightedScore);
+
+  // Strip internal scoring fields from output
+  const results = deduped.slice(0, limit).map(({ _score, _weightedScore, ...rest }) => rest);
+
+  return { results, sources };
 }
 
 /**
- * Get counts of skills in the awesome-agent-skills index (for display).
+ * Get counts of skills in each registry (for display).
  */
 export async function getRegistryStats() {
   const entries = await loadAwesomeSkills();
+  const anthropicSkills = await loadAnthropicSkills();
   return {
     awesome: entries.length,
     skillsSh: SKILLS_SH_POPULAR.length,
-    anthropic: ANTHROPIC_SKILLS.length,
+    anthropic: anthropicSkills.length,
   };
 }
