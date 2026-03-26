@@ -30,10 +30,12 @@ function which(cmd) {
 
 function execPromise(cmd, args, opts = {}) {
   return new Promise((resolve, reject) => {
-    execFile(cmd, args, { timeout: 15000, ...opts }, (err, stdout, stderr) => {
+    execFile(cmd, args, { timeout: 30000, ...opts }, (err, stdout, stderr) => {
       if (err) {
-        const msg = stderr?.trim() || stdout?.trim() || err.message;
-        reject(new Error(msg));
+        const e = new Error(stderr?.trim() || stdout?.trim() || err.message);
+        e.stderr = stderr?.trim() || '';
+        e.stdout = stdout?.trim() || '';
+        reject(e);
       } else {
         resolve(stdout);
       }
@@ -708,16 +710,32 @@ async function stopAllAgents(projectDir, config, parsed) {
   // Kill the gateway process if it's running
   const gatewayRunning = await isGatewayRunning();
   if (gatewayRunning) {
+    let killed = false;
+
+    // Method 1: lsof to find PIDs on gateway port
     try {
-      // Find the gateway PID
       const out = await execPromise('lsof', ['-ti', ':18789']);
       const pids = out.trim().split('\n').filter(Boolean).map(Number);
       for (const pid of pids) {
-        try { process.kill(pid, 'SIGTERM'); } catch { /* already dead */ }
+        try { process.kill(pid, 'SIGTERM'); killed = true; } catch { /* already dead */ }
       }
+    } catch { /* lsof may not be available */ }
+
+    // Method 2: pkill as fallback
+    if (!killed) {
+      try {
+        await execPromise('pkill', ['-f', 'openclaw.*gateway']);
+        killed = true;
+      } catch { /* may not find it */ }
+    }
+
+    if (killed) {
+      // Give it a moment to die
+      await new Promise(r => setTimeout(r, 1000));
       success('Gateway stopped');
-    } catch {
-      warn('Could not stop gateway automatically. Close the gateway terminal manually.');
+    } else {
+      warn('Could not stop gateway automatically. Try:');
+      console.log(`    ${dim('$')} ${bold('pkill -f "openclaw gateway"')}`);
     }
   }
 
@@ -1064,24 +1082,43 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
   if (!gatewayRunning) {
     info('Starting OpenClaw gateway in background...');
 
+    // Capture stderr so we can diagnose failures
+    const gatewayErrors = [];
     const child = spawn('openclaw', ['gateway'], {
-      stdio: 'ignore', detached: true, cwd: resolve(projectDir),
+      stdio: ['ignore', 'ignore', 'pipe'], detached: true, cwd: resolve(projectDir),
       env: { ...process.env, OLLAMA_API_KEY: 'ollama-local' },
     });
+    child.stderr.on('data', (data) => {
+      gatewayErrors.push(data.toString().trim());
+    });
+    // Detach after setting up stderr capture
     child.unref();
+    // Prevent stderr from keeping the parent alive
+    child.stderr.unref?.();
 
-    // Wait for gateway to be ready
-    for (let i = 0; i < 15; i++) {
+    // Wait for gateway to be ready (up to 20s)
+    for (let i = 0; i < 20; i++) {
       await new Promise(r => setTimeout(r, 1000));
       if (await isGatewayRunning()) {
         gatewayRunning = true;
         break;
       }
+      // Check if the child exited early (crashed)
+      if (child.exitCode !== null) break;
     }
 
     if (!gatewayRunning) {
-      error('Gateway did not start. Check OpenClaw installation:');
-      console.log(`    ${dim('$')} ${bold('openclaw gateway')}  ${dim('# try starting manually')}`);
+      error('Gateway did not start.');
+      if (gatewayErrors.length > 0) {
+        const errMsg = gatewayErrors.join('\n').slice(0, 500);
+        console.log(`    ${dim('Error output:')}`);
+        for (const line of errMsg.split('\n').slice(0, 5)) {
+          console.log(`    ${dim(line)}`);
+        }
+        console.log();
+      }
+      console.log(`    ${dim('Try starting manually to see the full error:')}`);
+      console.log(`    ${dim('$')} ${bold('openclaw gateway')}`);
       console.log();
       return;
     }
@@ -1089,6 +1126,27 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
   } else {
     success('Gateway already running');
   }
+
+  // Give gateway a moment to fully initialize its API endpoints
+  await new Promise(r => setTimeout(r, 2000));
+
+  // Verify gateway is truly accepting commands before registering agents
+  try {
+    await execPromise('openclaw', ['agents', 'list']);
+  } catch {
+    info('Gateway warming up...');
+    await new Promise(r => setTimeout(r, 3000));
+    try {
+      await execPromise('openclaw', ['agents', 'list']);
+    } catch {
+      error('Gateway is not responding to commands.');
+      console.log(`    ${dim('Try:')} ${bold('openclaw gateway')} ${dim('in a separate terminal, then:')}`);
+      console.log(`    ${dim('$')} ${bold('serpentstack persistent --start')}`);
+      console.log();
+      return;
+    }
+  }
+  success('Gateway accepting commands');
 
   // Register agents and create cron jobs
   const sharedSoul = readFileSync(soulPath, 'utf8');
@@ -1116,7 +1174,7 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
       try {
         await execPromise('openclaw', ['agents', 'delete', name, '--force']).catch(() => {});
 
-        await execPromise('openclaw', [
+        const addOutput = await execPromise('openclaw', [
           'agents', 'add', name,
           '--workspace', absWorkspace,
           '--model', effectiveModel,
@@ -1127,13 +1185,17 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
         if (effectiveModel.startsWith('ollama/')) {
           ensureAgentOllamaAuth(name);
         }
+
+        success(`Registered ${bold(name)} ${dim(`(${modelShortName(effectiveModel)})`)}`);
       } catch (err) {
-        warn(`Could not register ${bold(name)}: ${err.message || 'unknown error'}`);
+        const msg = (err.stderr || err.message || 'unknown error').trim();
+        error(`Could not register ${bold(name)}: ${msg}`);
         continue;
       }
 
       // Add cron jobs for the agent's schedule
       const schedules = agentMd.meta.schedule || [];
+      let cronCount = 0;
       for (const sched of schedules) {
         try {
           await execPromise('openclaw', [
@@ -1145,9 +1207,14 @@ async function runStart(projectDir, parsed, config, soulPath, hasOpenClaw) {
             '--name', `${name}-${sched.task}`,
             '--light-context',
           ]);
-        } catch {
-          // Cron job may already exist
+          cronCount++;
+        } catch (err) {
+          const msg = (err.stderr || err.message || '').trim();
+          if (process.env.DEBUG) warn(`Cron add failed for ${sched.task}: ${msg}`);
         }
+      }
+      if (cronCount > 0) {
+        info(`${cronCount} scheduled task(s) created for ${bold(name)}`);
       }
 
       launched.push({ name, agentMd, effectiveModel });
