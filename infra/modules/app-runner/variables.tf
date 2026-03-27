@@ -20,7 +20,13 @@ variable "app_image_tag" {
 }
 
 variable "database_url" {
-  description = "PostgreSQL connection string"
+  description = "PostgreSQL connection string (asyncpg driver)"
+  type        = string
+  sensitive   = true
+}
+
+variable "secret_key" {
+  description = "Application secret key for JWT signing"
   type        = string
   sensitive   = true
 }

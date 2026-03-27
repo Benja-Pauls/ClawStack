@@ -9,27 +9,21 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
 </p>
 
-<p align="center"><strong>The open-source AI team framework.</strong></p>
+<p align="center"><strong>Persistent AI agents that keep your codebase healthy. Skills that make every agent smarter.</strong></p>
 
 <p align="center">
   <a href="#quick-start">Quick Start</a> &middot;
-  <a href="#skill-discovery">Skill Discovery</a> &middot;
   <a href="#persistent-agents">Persistent Agents</a> &middot;
+  <a href="#skills">Skills</a> &middot;
   <a href="#production-template">Production Template</a> &middot;
   <a href="#cli-reference">CLI</a>
 </p>
 
 ---
 
-AI coding agents are only as good as what they know about your project. The difference between an agent that produces five rounds of corrections and one that gets it right the first time comes down to [skills](https://agentskills.io/home) — structured knowledge about your conventions, patterns, and architecture. This is how Stripe merges [1,300+ agent-generated PRs per week](https://stripe.dev/blog/how-we-build-software-at-stripe-in-2025) and Shopify operates with agents as [a core part of their engineering workflow](https://www.businessinsider.com/shopify-ceo-tells-employees-to-use-ai-before-asking-for-more-staff-2025-4). Teams that invest in high-quality skills and continuous agent feedback ship faster, regardless of which model or IDE they use.
+AI coding agents are only as good as what they know about your project. [Skills](https://agentskills.io/home) — structured knowledge about your conventions, patterns, and architecture — are how [Stripe merges 1,300+ agent-generated PRs per week](https://stripe.dev/blog/how-we-build-software-at-stripe-in-2025) and [Shopify operates with agents as a core part of engineering](https://www.businessinsider.com/shopify-ceo-tells-employees-to-use-ai-before-asking-for-more-staff-2025-4). But skills go stale the moment code changes. Nobody maintains them.
 
-SerpentStack is a CLI and framework built around that idea. It solves three problems:
-
-1. **Finding skills is fragmented.** There are half a million [agent skills](https://agentskills.io/home) spread across Anthropic, Vercel, GitHub, and dozens of community repos. SerpentStack searches all of them from one command and recommends skills based on your project's actual stack.
-
-2. **Agents need continuous feedback.** A coding agent that only runs when you ask it to will miss regressions, crashes, and stale documentation. SerpentStack runs persistent background agents on free local models via [Ollama](https://ollama.com) — no API keys, no cloud costs.
-
-3. **Starting from scratch is slow.** SerpentStack includes a production-ready fullstack template (FastAPI, React, Postgres, Terraform) with working auth, CRUD, tests, and deployment. Every convention is encoded as a skill that agents can read on first interaction.
+SerpentStack runs **persistent background agents on free local models** that watch your project continuously — catching crashes, running tests, and keeping your skills accurate as code evolves. It also provides a cross-registry skill discovery CLI and a production-ready fullstack template where every convention is pre-encoded as a skill.
 
 ```bash
 npm install -g serpentstack
@@ -46,11 +40,9 @@ Requires Node 22+.
 ```bash
 cd your-project
 serpentstack skills                      # download base skills + agent configs
-serpentstack search "react testing"      # find community skills for your stack
 serpentstack persistent                  # configure and launch background agents
+serpentstack notifications               # see what your agents found
 ```
-
-SerpentStack reads your `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, or `Makefile` to detect language, framework, and dev commands automatically.
 
 ### New project
 
@@ -60,52 +52,13 @@ cd my-app
 make init && make setup && make dev
 ```
 
-This gives you a running fullstack app at `localhost:8000` (API) and `localhost:5173` (frontend) with JWT auth, resource CRUD, ownership enforcement, real Postgres tests, and a full AI team pre-configured. See [Production Template](#production-template) for details.
-
----
-
-## Skill Discovery
-
-Skills — markdown files that teach agents your project's conventions — are the highest-leverage investment a team can make in AI-assisted development. The problem is finding good ones. SerpentStack indexes the major registries and community collections so you don't have to browse them individually.
-
-```bash
-serpentstack search "auth oauth"         # cross-registry search
-serpentstack discover                    # project-aware recommendations
-serpentstack add stripe/agent-skills     # install from any GitHub repo or registry
-```
-
-Sources include [Anthropic's official skills](https://github.com/anthropics/skills), [Vercel's skills.sh](https://skills.sh/), [awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills), [SkillsMP](https://skillsmp.com), and public GitHub repos with skill files.
-
-SerpentStack also runs as an **MCP server** (`serpentstack mcp`), which means your agents can search for and install skills without your involvement.
-
-### Base skills
-
-SerpentStack ships 10 skills as a starting point:
-
-| Skill | Purpose |
-|---|---|
-| `auth` | JWT, ownership enforcement, SSO swap patterns |
-| `db-migrate` | Alembic migrations — create, review, apply, rollback |
-| `deploy` | Docker, ECR, Terraform plan/apply, rollback procedures |
-| `dev-server` | Error detection patterns for backend and frontend servers |
-| `find-skills` | Evaluate and adopt community skills |
-| `generate-skills` | Interview-based generation of project-specific skills |
-| `git-workflow` | Branch naming, conventional commits, PR checklists |
-| `model-routing` | Delegate tasks to local models for cost reduction |
-| `scaffold` | End-to-end resource generation, model through frontend |
-| `test` | Real Postgres via testcontainers, savepoint isolation |
-
-These follow the [Agent Skills open standard](https://agentskills.io/home) and work with Claude Code, Codex, Cursor, Copilot, Gemini CLI, and any tool that reads `SKILL.md` files.
-
-Each skill contains complete, copy-paste templates with real imports and type signatures — not descriptions of what code should look like. Every skill ends with a verification step so agents can confirm their own work.
-
-To generate skills tailored to your project, ask your IDE agent to read `.skills/generate-skills/SKILL.md`. It will interview you about your architecture decisions and produce a custom skill set.
+Running fullstack app at `localhost:8000` (API) and `localhost:5173` (frontend) with JWT auth, resource CRUD, real Postgres tests, and a full AI team pre-configured.
 
 ---
 
 ## Persistent Agents
 
-SerpentStack includes three background agents that monitor your project continuously, running on local models at zero cost.
+Three background agents monitor your project continuously, running on local models via [Ollama](https://ollama.com) at zero cost.
 
 ```
 .openclaw/
@@ -116,37 +69,71 @@ SerpentStack includes three background agents that monitor your project continuo
     skill-maintainer/AGENT.md  # skill drift detection                  (every 1hr)
 ```
 
-**Log Watcher** monitors dev server output and catches backend crashes, frontend build errors, and import failures with file paths and fix suggestions.
+**Log Watcher** monitors dev server output and catches crashes, import failures, and runtime errors with file paths and fix suggestions.
 
-**Test Runner** runs your test suite, linter, and type checker on a schedule. It reports which test failed, what changed, and whether the test or the source needs updating.
+**Test Runner** runs your test suite, linter, and type checker on a schedule. It tracks which tests are failing, what changed, and whether the test or the source needs updating. It distinguishes new failures from persistent ones.
 
-**Skill Maintainer** compares `.skills/` files against actual code patterns and proposes updates when they drift. This keeps every IDE agent working from accurate information.
+**Skill Maintainer** compares `.skills/` files against actual code patterns and proposes updates when conventions drift. This is the critical piece — without it, skills go stale and agents start producing code that doesn't match your project. No other tool does this.
 
-Agents default to local models via [Ollama](https://ollama.com). During setup, SerpentStack installs Ollama and downloads a model if needed — no configuration required. Cloud models are available for users who prefer them.
+Agents write findings to `~/.serpentstack/notifications/`. Read them with:
+
+```bash
+serpentstack notifications               # list all findings
+serpentstack notifications --errors      # errors only
+serpentstack notifications --read 1      # full detail on a specific finding
+serpentstack notifications --clear       # clear all
+```
+
+During setup, SerpentStack installs Ollama and downloads a model if needed — no API keys or configuration required. Cloud models are available for users who prefer them.
 
 ```bash
 serpentstack persistent                  # guided setup on first run, status dashboard after
 serpentstack persistent --start          # launch agents
-serpentstack persistent --stop           # stop all agents and the gateway
-serpentstack persistent --agents         # change models or enable/disable agents
-serpentstack persistent --models         # browse installed and available models
+serpentstack persistent --stop           # stop all agents
+serpentstack persistent --agents         # change models or enable/disable
 ```
 
-To add your own agent, create a folder under `.openclaw/agents/` with an `AGENT.md` file:
+To add your own agent, create a folder under `.openclaw/agents/` with an `AGENT.md` file.
 
-```yaml
 ---
-name: deploy-watcher
-description: Monitors deployment health after every push
-model: ollama/llama3.2
-schedule:
-  - every: 5m
-    task: check-deployment-health
-tools:
-  - file-system
-  - shell
----
+
+## Skills
+
+SerpentStack ships 10 base skills and a CLI for finding community skills across every major registry.
+
+### Base skills
+
+| Skill | What it teaches agents |
+|---|---|
+| `scaffold` | End-to-end resource generation: model, schema, service, route, migration, tests, frontend types |
+| `auth` | JWT, ownership enforcement, SSO swap patterns (one function to replace) |
+| `test` | Real Postgres via testcontainers, savepoint isolation, async httpx |
+| `db-migrate` | Alembic workflow: create, review, apply, troubleshoot, rollback |
+| `deploy` | Docker multi-stage builds, ECR push, Terraform plan/apply, rollback |
+| `dev-server` | Error detection patterns for FastAPI and Vite/React |
+| `git-workflow` | Branch naming, conventional commits, PR checklists |
+| `model-routing` | Delegate code generation to local models for 10-50x cost reduction |
+| `generate-skills` | Interview-based generation of project-specific skills for any codebase |
+| `find-skills` | Evaluate and adopt community skills safely |
+
+Each skill contains complete, copy-paste templates with real imports and type signatures — not descriptions of what code should look like. Every skill ends with a verification step so agents can confirm their own work.
+
+These follow the [Agent Skills open standard](https://agentskills.io/home) and work with Claude Code, Codex, Cursor, Copilot, Gemini CLI, and any tool that reads `SKILL.md` files.
+
+### Generating skills for your project
+
+The most valuable skill is `generate-skills`. Ask your IDE agent to read `.skills/generate-skills/SKILL.md` — it will analyze your codebase, interview you about your architecture decisions, and produce a custom skill set tailored to your project. This is the fastest path to agents that understand your conventions.
+
+### Skill discovery
+
+```bash
+serpentstack search "auth oauth"         # cross-registry search
+serpentstack discover                    # project-aware recommendations
+serpentstack add clerk                   # install by name (resolves via registries)
+serpentstack add stripe/ai               # install from a specific GitHub repo
 ```
+
+Sources: [Anthropic official skills](https://github.com/anthropics/skills), [skills.sh](https://skills.sh/), [awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills), and public GitHub repos.
 
 ---
 
@@ -179,13 +166,13 @@ infra/                # Terraform: App Runner, RDS, ECR, VPC
 .openclaw/            # Persistent agent workspace
 ```
 
-**Backend:** FastAPI with async SQLAlchemy and asyncpg. Chosen because AI applications multiplex LLM calls (2-30 seconds each), and async handles thousands of concurrent connections where sync tops out around 40.
+**Backend:** FastAPI with async SQLAlchemy and asyncpg. Async handles thousands of concurrent LLM-multiplexed connections where sync tops out around 40.
 
-**Frontend:** React with TypeScript. Types are generated from the backend's OpenAPI spec via `make types` — no manual schema duplication.
+**Frontend:** React with TypeScript. Types generated from the backend's OpenAPI spec via `make types` — no manual schema duplication.
 
-**Testing:** pytest with testcontainers running real Postgres. SQLite can't reproduce UUID columns, `ON CONFLICT`, or JSONB behavior, so tests run against the same database engine as production.
+**Testing:** pytest with testcontainers running real Postgres. SQLite can't reproduce UUID columns, `ON CONFLICT`, or JSONB behavior.
 
-**Infrastructure:** Terraform modules for AWS App Runner, RDS, ECR, and VPC. Standard Docker containers — the AWS modules are a reference implementation that runs anywhere containers run.
+**Infrastructure:** Terraform modules for AWS App Runner, RDS, ECR, and VPC. Standard Docker containers — runs anywhere containers run.
 
 </details>
 
@@ -223,23 +210,22 @@ make deploy          # build, push, terraform apply
 ## CLI Reference
 
 ```bash
-# Discovery
-serpentstack search <query>             # search skill registries
-serpentstack discover                   # analyze project and recommend skills
-serpentstack add <source>               # install from any registry or repo
-serpentstack mcp                        # run as MCP server
+# Agents
+serpentstack persistent                 # status dashboard (guided setup on first run)
+serpentstack persistent --start         # launch agents
+serpentstack persistent --stop          # stop all agents
+serpentstack notifications              # what your agents found
+serpentstack notifications --errors     # errors only
+serpentstack notifications --read 1     # full detail
 
 # Skills
 serpentstack skills                     # download base skills and agent configs
 serpentstack skills update              # update to latest versions
 
-# Agents
-serpentstack persistent                 # status dashboard (guided setup on first run)
-serpentstack persistent --configure     # edit project settings
-serpentstack persistent --agents        # configure agent models
-serpentstack persistent --models        # list and install models
-serpentstack persistent --start         # launch agents
-serpentstack persistent --stop          # stop all agents
+# Discovery
+serpentstack search <query>             # search skill registries
+serpentstack discover                   # analyze project and recommend skills
+serpentstack add <source>               # install from any registry or repo
 
 # Template
 serpentstack stack new <name>           # scaffold a new project
@@ -250,7 +236,7 @@ serpentstack stack update               # update template files
 
 ## Contributing
 
-Contributions are welcome. Areas of particular interest: new skills for common frameworks, connectors for additional skill registries, background agent configs, Terraform modules for GCP and Azure, and integrations with other AI coding tools.
+Contributions are welcome. Areas of particular interest: new skills for common frameworks, persistent agent configs for new use cases, background agent improvements, Terraform modules for GCP and Azure, and integrations with other AI coding tools.
 
 See [SKILL-AUTHORING.md](SKILL-AUTHORING.md) for the skill format. [Open an issue](https://github.com/Benja-Pauls/SerpentStack/issues) for bugs and feature requests.
 

@@ -8,13 +8,10 @@ terraform {
     }
   }
 
-  backend "s3" {
-    bucket         = "serpentstack-terraform-state"
-    key            = "infrastructure/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "serpentstack-terraform-locks"
-    encrypt        = true
-  }
+  # Backend is configured at init time via -backend-config flags.
+  # See: scripts/deploy-init.sh (creates the bucket + DynamoDB table)
+  #      infra/environments/*/backend.hcl (per-environment config)
+  backend "s3" {}
 }
 
 provider "aws" {
@@ -47,12 +44,13 @@ module "ecr" {
 module "rds" {
   source = "./modules/rds"
 
-  project_name      = var.project_name
-  environment       = var.environment
-  db_instance_class = var.db_instance_class
-  vpc_id            = module.networking.vpc_id
-  private_subnet_ids = module.networking.private_subnet_ids
-  app_security_group_id = module.networking.app_security_group_id
+  project_name          = var.project_name
+  environment           = var.environment
+  db_instance_class     = var.db_instance_class
+  db_password           = var.db_password
+  vpc_id                = module.networking.vpc_id
+  private_subnet_ids    = module.networking.private_subnet_ids
+  db_security_group_id  = module.networking.db_security_group_id
 }
 
 module "app_runner" {
@@ -62,7 +60,8 @@ module "app_runner" {
   environment        = var.environment
   ecr_repository_url = module.ecr.backend_repository_url
   app_image_tag      = var.app_image_tag
-  database_url       = module.rds.connection_string
+  database_url       = module.rds.async_connection_string
+  secret_key         = var.secret_key
   vpc_id             = module.networking.vpc_id
   private_subnet_ids = module.networking.private_subnet_ids
   app_security_group_id = module.networking.app_security_group_id

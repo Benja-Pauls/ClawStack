@@ -27,7 +27,7 @@ function parseArgs(args) {
 }
 
 // Known commands for fuzzy matching on typos
-const KNOWN_COMMANDS = ['stack', 'skills', 'persistent', 'search', 'add', 'discover', 'mcp'];
+const KNOWN_COMMANDS = ['stack', 'skills', 'persistent', 'search', 'add', 'discover', 'mcp', 'notifications', 'notifs'];
 
 function suggestCommand(input) {
   const lower = input.toLowerCase();
@@ -87,6 +87,9 @@ function showHelp() {
     `${cyan('persistent')} ${dim('--models')}          List installed & recommended models`,
     `${cyan('persistent')} ${dim('--configure')}       Edit project settings`,
     `${cyan('persistent')} ${dim('--watch')}           Live agent activity feed`,
+    `${cyan('notifications')}                 What your agents have found`,
+    `${cyan('notifications')} ${dim('--errors')}      Errors only`,
+    `${cyan('notifications')} ${dim('--clear')}       Clear all notifications`,
   ]);
   console.log();
 
@@ -173,11 +176,23 @@ async function main() {
     const { add } = await import('../lib/commands/add.js');
     await add([verb, ...rest].join('/'), { force: !!flags.force });
   } else if (noun === 'discover') {
-    error('serpentstack discover is coming soon.');
-    console.log(`\n  For now, search by your stack:\n    ${dim('$')} ${bold('serpentstack search "your-framework"')}\n`);
+    const { discover } = await import('../lib/commands/discover.js');
+    await discover();
   } else if (noun === 'mcp') {
     error('serpentstack mcp is coming soon.');
     console.log(`\n  Track progress: ${bold('https://github.com/Benja-Pauls/SerpentStack/issues')}\n`);
+  } else if (noun === 'notifications' || noun === 'notifs') {
+    const { notifications } = await import('../lib/commands/notifications.js');
+    // --read 3 parses as read:true + verb:'3', --read=3 parses as read:'3'
+    const readIdx = flags.read === true ? verb : flags.read;
+    await notifications({
+      clear: !!flags.clear,
+      read: readIdx || undefined,
+      agent: typeof flags.agent === 'string' ? flags.agent : (flags.agent === true ? verb : undefined),
+      errors: !!flags.errors,
+      warnings: !!flags.warnings,
+      limit: flags.limit === true ? verb : flags.limit,
+    });
   } else if (noun === 'persistent') {
     const { persistent } = await import('../lib/commands/persistent.js');
     await persistent({

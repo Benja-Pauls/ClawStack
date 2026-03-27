@@ -1,4 +1,4 @@
-.PHONY: init dev dev-docker test test-backend test-frontend migrate migrate-new build lint clean setup deploy-init deploy types seed worker ui verify persistent
+.PHONY: init dev dev-docker test test-backend test-frontend test-cli test-init migrate migrate-new build lint clean setup deploy-init deploy preflight types seed worker ui verify persistent
 
 init:
 	python3 scripts/init.py
@@ -21,13 +21,19 @@ _dev-frontend:
 dev-docker:
 	docker compose up --build
 
-test: test-backend test-frontend
+test: test-backend test-frontend test-cli test-init
 
 test-backend:
 	cd backend && uv run pytest
 
 test-frontend:
 	cd frontend && npm test
+
+test-cli:
+	node --test cli/test/cli.test.js
+
+test-init:
+	python3 -m pytest tests/test_init.py -v
 
 migrate:
 	cd backend && uv run alembic upgrade head
@@ -62,6 +68,9 @@ deploy-init:
 deploy:
 	./scripts/deploy.sh $(env)
 
+preflight:
+	./scripts/preflight.sh $(env)
+
 seed:
 	cd backend && uv run python -m app.cli.seed
 
@@ -82,6 +91,10 @@ verify:
 	cd backend && uv run pytest --tb=short -q
 	@echo "── Tests (frontend) ──"
 	cd frontend && npm test
+	@echo "── Tests (CLI) ──"
+	node --test cli/test/cli.test.js
+	@echo "── Tests (init script) ──"
+	python3 -m pytest tests/test_init.py -q
 	@echo ""
 	@echo "✅ All checks passed."
 

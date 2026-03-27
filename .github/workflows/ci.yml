@@ -21,7 +21,7 @@ jobs:
 
     env:
       ENVIRONMENT: test
-      SECRET_KEY: test-secret-key
+      SECRET_KEY: test-secret-key-ci-only
 
     steps:
       - uses: actions/checkout@v4
@@ -75,3 +75,58 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+  cli:
+    name: CLI (smoke tests)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run CLI smoke tests
+        run: node --test cli/test/cli.test.js
+
+  init-script:
+    name: Init script tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run init tests
+        run: python -m pytest tests/test_init.py -v
+
+  infra:
+    name: Infrastructure validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.5"
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive infra/
+
+      - name: Validate Terraform syntax (root module)
+        working-directory: infra
+        run: |
+          # Init with a local backend just for validation (no real S3 needed)
+          terraform init -backend=false
+          terraform validate

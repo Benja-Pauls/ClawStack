@@ -18,7 +18,6 @@ variable "db_password" {
   description = "Database master password"
   type        = string
   sensitive   = true
-  default     = ""
 }
 
 variable "vpc_id" {
@@ -31,7 +30,7 @@ variable "private_subnet_ids" {
   type        = list(string)
 }
 
-variable "app_security_group_id" {
-  description = "Security group ID for the application layer (allowed to connect)"
+variable "db_security_group_id" {
+  description = "Security group ID for the database layer"
   type        = string
 }

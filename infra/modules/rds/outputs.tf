@@ -14,8 +14,14 @@ output "port" {
 }
 
 output "connection_string" {
-  description = "PostgreSQL connection string"
+  description = "PostgreSQL connection string (sync driver)"
   value       = "postgresql://${aws_db_instance.main.username}:${var.db_password}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}"
+  sensitive   = true
+}
+
+output "async_connection_string" {
+  description = "PostgreSQL connection string (asyncpg driver, used by FastAPI)"
+  value       = "postgresql+asyncpg://${aws_db_instance.main.username}:${var.db_password}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}"
   sensitive   = true
 }
 

@@ -265,6 +265,47 @@ async function resolveViaGitHubSearch(input) {
 }
 
 /**
+ * Derive a meaningful skill name from the SKILL.md source URL or content.
+ * Priority: frontmatter name → parent directory from URL → fallback
+ */
+function deriveSkillName(url, content, fallback) {
+  // 1. Try YAML frontmatter: name: my-skill
+  const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
+  if (fmMatch) {
+    const nameMatch = fmMatch[1].match(/^name:\s*(.+)$/m);
+    if (nameMatch) {
+      const name = nameMatch[1].trim().replace(/^["']|["']$/g, '');
+      if (name.length > 1 && name.length < 64) {
+        return name.replace(/[^a-z0-9_-]/gi, '-');
+      }
+    }
+  }
+
+  // 2. Try parent directory from URL: .../skills/stripe-best-practices/SKILL.md
+  if (url) {
+    const urlMatch = url.match(/\/([^/]+)\/SKILL\.md$/i);
+    if (urlMatch) {
+      const dirName = urlMatch[1];
+      // Skip generic directory names
+      if (!['main', 'master', 'skills', 'src', 'lib', 'plugin'].includes(dirName.toLowerCase())) {
+        return dirName.replace(/[^a-z0-9_-]/gi, '-');
+      }
+    }
+  }
+
+  // 3. Try first markdown heading: # My Skill Name
+  const headingMatch = content.match(/^#\s+(.+)$/m);
+  if (headingMatch) {
+    const heading = headingMatch[1].trim();
+    if (heading.length > 1 && heading.length < 64) {
+      return heading.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '');
+    }
+  }
+
+  return fallback.replace(/[^a-z0-9_-]/gi, '-');
+}
+
+/**
  * Install a skill from a GitHub source into .skills/<name>/SKILL.md
  */
 export async function add(source, { force = false } = {}) {
@@ -365,7 +406,10 @@ export async function add(source, { force = false } = {}) {
     return;
   }
 
-  skillName = skillName.replace(/[^a-z0-9_-]/gi, '-');
+  // Derive a meaningful name from the source URL path or SKILL.md content.
+  // e.g., ".../skills/stripe-best-practices/SKILL.md" → "stripe-best-practices"
+  // e.g., YAML frontmatter "name: my-skill" → "my-skill"
+  skillName = deriveSkillName(result.url, result.content, skillName);
 
   const skillDir = join(process.cwd(), '.skills', skillName);
   const skillPath = join(skillDir, 'SKILL.md');

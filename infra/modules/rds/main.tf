@@ -52,7 +52,7 @@ resource "aws_db_instance" "main" {
 
   db_subnet_group_name   = aws_db_subnet_group.main.name
   parameter_group_name   = aws_db_parameter_group.postgres.name
-  vpc_security_group_ids = [var.app_security_group_id]
+  vpc_security_group_ids = [var.db_security_group_id]
 
   multi_az            = var.environment == "prod"
   publicly_accessible = false

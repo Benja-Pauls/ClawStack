@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Bootstrap Terraform state backend (S3 bucket + DynamoDB table).
+# Bootstrap Terraform state backend (S3 bucket + DynamoDB table)
+# and update backend.hcl files with project-specific names.
 # Run this once before your first `terraform apply`.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -70,8 +71,31 @@ else
   echo "  ✅ Created table '$TABLE'"
 fi
 
+# Update backend.hcl files for all environments
+echo ""
+echo "  Updating Terraform backend configs..."
+for env in dev staging prod; do
+  HCL_FILE="$ROOT_DIR/infra/environments/$env/backend.hcl"
+  cat > "$HCL_FILE" <<EOF
+bucket         = "$BUCKET"
+key            = "$env/terraform.tfstate"
+region         = "$REGION"
+dynamodb_table = "$TABLE"
+encrypt        = true
+EOF
+  echo "  ✅ Updated infra/environments/$env/backend.hcl"
+done
+
 echo ""
 echo "  ✅ Terraform state backend is ready!"
+echo ""
+echo "  Before deploying, set these environment variables:"
+echo ""
+echo "    export TF_VAR_db_password=\"your-secure-database-password\""
+echo "    export TF_VAR_secret_key=\"your-secure-jwt-secret-at-least-16-chars\""
+echo ""
+echo "  Or add them as GitHub repository secrets:"
+echo "    TF_VAR_db_password, TF_VAR_secret_key"
 echo ""
 echo "  Next: run 'make deploy' to build and deploy your app."
 echo ""

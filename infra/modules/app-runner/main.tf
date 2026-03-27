@@ -77,6 +77,7 @@ resource "aws_apprunner_service" "main" {
         runtime_environment_variables = {
           ENVIRONMENT  = var.environment
           DATABASE_URL = var.database_url
+          SECRET_KEY   = var.secret_key
           LOG_LEVEL    = var.environment == "prod" ? "WARNING" : "DEBUG"
         }
       }
